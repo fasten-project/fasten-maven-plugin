@@ -36,11 +36,12 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
-import org.json.JSONException;
 
-import eu.fasten.analyzer.javacgopal.core.RevisionCallGraph;
+import eu.fasten.analyzer.javacgopal.data.CallGraphConstructor;
 import eu.fasten.analyzer.javacgopal.data.PartialCallGraph;
-import eu.fasten.analyzer.javacgopal.merge.CallGraphMerger;
+import eu.fasten.analyzer.javacgopal.data.exceptions.OPALException;
+import eu.fasten.core.data.ExtendedRevisionCallGraph;
+import eu.fasten.core.merge.LocalMerger;
 
 /**
  * Build a call graph of the module and its dependencies.
@@ -55,6 +56,9 @@ public class CheckMojo extends AbstractMojo
 
     @Parameter(defaultValue = "target/call-graphs/")
     private File outputDirectory;
+
+    @Parameter(defaultValue = "CHA")
+    private String genAlgorithm;
 
     @Parameter(defaultValue = "CHA")
     private String mergeAlgorithm;
@@ -73,11 +77,17 @@ public class CheckMojo extends AbstractMojo
 
         // Build project call graph
         File projectCallGraphFile = new File(this.outputDirectory, "project.json");
-        RevisionCallGraph projectCG =
-            buildCallGraph(new File(this.project.getBuild().getOutputDirectory()), projectCallGraphFile, "project");
+        ExtendedRevisionCallGraph projectCG;
+        try {
+            projectCG =
+                buildCallGraph(new File(this.project.getBuild().getOutputDirectory()), projectCallGraphFile, "project");
+        } catch (OPALException e) {
+            throw new MojoExecutionException(
+                "Failed to build a call graph for directory [" + this.project.getBuild().getOutputDirectory() + "]", e);
+        }
 
         // Build/Get dependencies call graphs
-        List<RevisionCallGraph> dependencies = new ArrayList<>();
+        List<ExtendedRevisionCallGraph> dependencies = new ArrayList<>();
         for (Artifact artifact : this.project.getArtifacts()) {
             getLog().info("Generating call graphs for dependency [" + artifact + "].");
             try {
@@ -90,17 +100,19 @@ public class CheckMojo extends AbstractMojo
 
         // Merge call graphs
         getLog().info("Merging call graphs.");
-        File mergeCallGraphFile = new File(outputDirectory, "merge.json");
-        RevisionCallGraph mergeCG = CallGraphMerger.mergeCallGraph(projectCG, dependencies, this.mergeAlgorithm);
 
+        LocalMerger merger = new LocalMerger(projectCG, dependencies);
+        ExtendedRevisionCallGraph mergedCG = merger.mergeWithCHA();
+
+        File mergeCallGraphFile = new File(outputDirectory, "merge.json");
         try {
-            FileUtils.write(mergeCallGraphFile, mergeCG.toJSON().toString(4), StandardCharsets.UTF_8);
+            FileUtils.write(mergeCallGraphFile, mergedCG.toJSON().toString(4), StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw new MojoExecutionException("Failed to serialize the merged call graph", e);
         }
     }
 
-    private RevisionCallGraph getCallGraph(Artifact artifact) throws JSONException, IOException
+    private ExtendedRevisionCallGraph getCallGraph(Artifact artifact) throws IOException, OPALException
     {
         if (!artifact.getFile().getName().endsWith(".jar")) {
             throw new IOException("Unsupported type ([" + artifact.getType() + "]) for artifact [" + artifact + "]");
@@ -116,12 +128,12 @@ public class CheckMojo extends AbstractMojo
         return buildCallGraph(artifact.getFile(), outputFile, artifact.toString());
     }
 
-    private RevisionCallGraph buildCallGraph(File file, File outputFile, String product) throws JSONException
+    private ExtendedRevisionCallGraph buildCallGraph(File file, File outputFile, String product) throws OPALException
     {
-        PartialCallGraph cg = new PartialCallGraph(file);
-        RevisionCallGraph revisionCallGraph =
-            RevisionCallGraph.extendedBuilder().graph(cg.getGraph()).product(product).version("").timestamp(0)
-                .cgGenerator("").depset(new ArrayList<>()).forge("").classHierarchy(cg.getClassHierarchy()).build();
+        PartialCallGraph input = new PartialCallGraph(new CallGraphConstructor(file, null, this.genAlgorithm));
+        ExtendedRevisionCallGraph cg = ExtendedRevisionCallGraph.extendedBuilder().graph(input.getGraph())
+            .product(product).version("").timestamp(0).cgGenerator("").forge("")
+            .classHierarchy(input.getClassHierarchy()).nodeCount(input.getNodeCount()).build();
 
         // Remember the call graph in a file
 
@@ -129,12 +141,12 @@ public class CheckMojo extends AbstractMojo
         outputFile.getParentFile().mkdirs();
 
         try {
-            FileUtils.write(outputFile, revisionCallGraph.toJSON().toString(4), StandardCharsets.UTF_8);
+            FileUtils.write(outputFile, cg.toJSON().toString(4), StandardCharsets.UTF_8);
         } catch (Exception e) {
             getLog().warn("Failed to serialize the call graph for artifact [" + file + "]: "
                 + ExceptionUtils.getRootCauseMessage(e));
         }
 
-        return revisionCallGraph;
+        return cg;
     }
 }
