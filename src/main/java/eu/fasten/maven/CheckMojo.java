@@ -40,7 +40,7 @@ import org.apache.maven.project.MavenProject;
 import eu.fasten.analyzer.javacgopal.data.CallGraphConstructor;
 import eu.fasten.analyzer.javacgopal.data.PartialCallGraph;
 import eu.fasten.analyzer.javacgopal.data.exceptions.OPALException;
-import eu.fasten.core.data.ExtendedRevisionCallGraph;
+import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
 import eu.fasten.core.merge.LocalMerger;
 
 /**
@@ -60,9 +60,6 @@ public class CheckMojo extends AbstractMojo
     @Parameter(defaultValue = "CHA")
     private String genAlgorithm;
 
-    @Parameter(defaultValue = "CHA")
-    private String mergeAlgorithm;
-
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException
     {
@@ -77,7 +74,7 @@ public class CheckMojo extends AbstractMojo
 
         // Build project call graph
         File projectCallGraphFile = new File(this.outputDirectory, "project.json");
-        ExtendedRevisionCallGraph projectCG;
+        ExtendedRevisionJavaCallGraph projectCG;
         try {
             projectCG =
                 buildCallGraph(new File(this.project.getBuild().getOutputDirectory()), projectCallGraphFile, "project");
@@ -87,7 +84,7 @@ public class CheckMojo extends AbstractMojo
         }
 
         // Build/Get dependencies call graphs
-        List<ExtendedRevisionCallGraph> dependencies = new ArrayList<>();
+        List<ExtendedRevisionJavaCallGraph> dependencies = new ArrayList<>();
         for (Artifact artifact : this.project.getArtifacts()) {
             getLog().info("Generating call graphs for dependency [" + artifact + "].");
             try {
@@ -98,11 +95,13 @@ public class CheckMojo extends AbstractMojo
             }
         }
 
-        // Merge call graphs
+        // Produce a stitched call graph
         getLog().info("Merging call graphs.");
 
-        LocalMerger merger = new LocalMerger(projectCG, dependencies);
-        ExtendedRevisionCallGraph mergedCG = merger.mergeWithCHA();
+        // FIXME: contrary to what the name suggest LocalMerger does not actually merge anything, it just resolve the
+        // pack id of each external call located in the project call graph
+        LocalMerger merger = new LocalMerger(dependencies);
+        ExtendedRevisionJavaCallGraph mergedCG = merger.mergeWithCHA(projectCG);
 
         File mergeCallGraphFile = new File(outputDirectory, "merge.json");
         try {
@@ -112,7 +111,7 @@ public class CheckMojo extends AbstractMojo
         }
     }
 
-    private ExtendedRevisionCallGraph getCallGraph(Artifact artifact) throws IOException, OPALException
+    private ExtendedRevisionJavaCallGraph getCallGraph(Artifact artifact) throws IOException, OPALException
     {
         if (!artifact.getFile().getName().endsWith(".jar")) {
             throw new IOException("Unsupported type ([" + artifact.getType() + "]) for artifact [" + artifact + "]");
@@ -121,17 +120,19 @@ public class CheckMojo extends AbstractMojo
         File outputFile = new File(this.outputDirectory,
             artifact.getGroupId() + '/' + artifact.getArtifactId() + '/' + artifact.getFile().getName() + ".json");
 
-        // TODO: Try to find it on the FASTEN server
+        // TODO: Try to find it on the FASTEN server first
 
-        // Build it locally
+        // Fallabck on build it locally
 
         return buildCallGraph(artifact.getFile(), outputFile, artifact.toString());
     }
 
-    private ExtendedRevisionCallGraph buildCallGraph(File file, File outputFile, String product) throws OPALException
+    private ExtendedRevisionJavaCallGraph buildCallGraph(File file, File outputFile, String product)
+        throws OPALException
     {
         PartialCallGraph input = new PartialCallGraph(new CallGraphConstructor(file, null, this.genAlgorithm));
-        ExtendedRevisionCallGraph cg = ExtendedRevisionCallGraph.extendedBuilder().graph(input.getGraph())
+
+        ExtendedRevisionJavaCallGraph cg = ExtendedRevisionJavaCallGraph.extendedBuilder().graph(input.getGraph())
             .product(product).version("").timestamp(0).cgGenerator("").forge("")
             .classHierarchy(input.getClassHierarchy()).nodeCount(input.getNodeCount()).build();
 
