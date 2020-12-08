@@ -84,7 +84,7 @@ public class CheckMojo extends AbstractMojo
         }
 
         // Build/Get dependencies call graphs
-        List<ExtendedRevisionJavaCallGraph> dependencies = new ArrayList<>();
+        List<MavenExtendedRevisionJavaCallGraph> dependencies = new ArrayList<>();
         for (Artifact artifact : this.project.getArtifacts()) {
             getLog().info("Generating call graphs for dependency [" + artifact + "].");
             try {
@@ -99,11 +99,29 @@ public class CheckMojo extends AbstractMojo
         getLog().info("Merging call graphs.");
 
         // FIXME: contrary to what the name suggest LocalMerger does not actually merge anything, it just resolve the
-        // pack id of each external call located in the project call graph
-        LocalMerger merger = new LocalMerger(dependencies);
-        ExtendedRevisionJavaCallGraph mergedCG = merger.mergeWithCHA(projectCG);
+        // product id of each external call located in the project call graph
+        LocalMerger merger = new LocalMerger((List) dependencies);
 
-        File mergeCallGraphFile = new File(outputDirectory, "merge.json");
+        // Produce the resolved graph for the project
+        writeLocalMerge(merger, projectCG, new File(outputDirectory, "project.resolved.json"));
+
+        // Produce the resolved graph for each dependency
+        for (MavenExtendedRevisionJavaCallGraph dependencyCG : dependencies) {
+            File outputFile =
+                new File(dependencyCG.getGraphFile().getParentFile(), dependencyCG.getGraphFile().getName().substring(0,
+                    dependencyCG.getGraphFile().getName().length() - ".json".length()) + ".resolved.json");
+
+            writeLocalMerge(merger, dependencyCG, outputFile);
+        }
+    }
+
+    private void writeLocalMerge(LocalMerger merger, ExtendedRevisionJavaCallGraph cg, File mergeCallGraphFile)
+        throws MojoExecutionException
+    {
+        getLog().info("Generating resolved call graphs for  [" + mergeCallGraphFile + "].");
+
+        ExtendedRevisionJavaCallGraph mergedCG = merger.mergeWithCHA(cg);
+
         try {
             FileUtils.write(mergeCallGraphFile, mergedCG.toJSON().toString(4), StandardCharsets.UTF_8);
         } catch (Exception e) {
@@ -111,7 +129,7 @@ public class CheckMojo extends AbstractMojo
         }
     }
 
-    private ExtendedRevisionJavaCallGraph getCallGraph(Artifact artifact) throws IOException, OPALException
+    private MavenExtendedRevisionJavaCallGraph getCallGraph(Artifact artifact) throws IOException, OPALException
     {
         if (!artifact.getFile().getName().endsWith(".jar")) {
             throw new IOException("Unsupported type ([" + artifact.getType() + "]) for artifact [" + artifact + "]");
@@ -122,19 +140,23 @@ public class CheckMojo extends AbstractMojo
 
         // TODO: Try to find it on the FASTEN server first
 
-        // Fallabck on build it locally
+        // Fallback on build it locally
 
-        return buildCallGraph(artifact.getFile(), outputFile, artifact.toString());
+        // FIXME: put back complete id when https://github.com/fasten-project/fasten/issues/167 is fixed
+        String productName = artifact.getArtifactId(); // artifact.toString();
+
+        return buildCallGraph(artifact.getFile(), outputFile, productName);
     }
 
-    private ExtendedRevisionJavaCallGraph buildCallGraph(File file, File outputFile, String product)
+    private MavenExtendedRevisionJavaCallGraph buildCallGraph(File file, File outputFile, String product)
         throws OPALException
     {
         PartialCallGraph input = new PartialCallGraph(new CallGraphConstructor(file, null, this.genAlgorithm));
 
-        ExtendedRevisionJavaCallGraph cg = ExtendedRevisionJavaCallGraph.extendedBuilder().graph(input.getGraph())
-            .product(product).version("").timestamp(0).cgGenerator("").forge("")
-            .classHierarchy(input.getClassHierarchy()).nodeCount(input.getNodeCount()).build();
+        MavenExtendedRevisionJavaCallGraph cg = new MavenExtendedRevisionJavaCallGraph(file,
+            ExtendedRevisionJavaCallGraph.extendedBuilder().graph(input.getGraph()).product(product).version("")
+                .timestamp(0).cgGenerator("").forge("").classHierarchy(input.getClassHierarchy())
+                .nodeCount(input.getNodeCount()));
 
         // Remember the call graph in a file
 
