@@ -27,7 +27,9 @@ import com.soebes.itf.jupiter.maven.MavenExecutionResult.ExecutionResult;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
- * Validate {@link CheckMojo}.
+ * Integration tests for {@link CheckMojo}.
+ * <p>
+ * Only works as part of a Maven build. Cannot be debugged in an IDE.
  * 
  * @version $Id$
  */
