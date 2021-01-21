@@ -25,10 +25,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Date;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 
 import org.apache.commons.collections4.SetUtils;
@@ -37,6 +39,7 @@ import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.DefaultArtifact;
 import org.apache.maven.model.Build;
+import org.apache.maven.model.Model;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugin.logging.Log;
@@ -44,7 +47,7 @@ import org.apache.maven.project.MavenProject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.google.common.collect.BiMap;
+import eu.fasten.core.data.JavaScope;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
@@ -96,6 +99,12 @@ class CheckMojoTest
         FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
         FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
 
+        Model model = new Model();
+        model.setGroupId("pgroupid");
+        model.setArtifactId("partifactid");
+        model.setVersion("1.0-SNAPSHOT");
+        this.project.setModel(model);
+
         Build build = new Build();
         build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
         this.project.setBuild(build);
@@ -132,14 +141,31 @@ class CheckMojoTest
     {
         this.mojo.execute();
 
-        BiMap<Long, String> uirs = this.mojo.uirs;
+        List<StitchedGraphNode> nodes = this.mojo.graph.getStichedNodes();
 
-        assertEquals(SetUtils.hashSet("fasten://mvn!project$/eu.fasten.maven.a/A.m1()%2Fjava.lang%2FVoidType",
-            "fasten://mvn!project$/eu.fasten.maven.a/A.m2()%2Fjava.lang%2FVoidType",
-            "fasten://mvn!b:b:jar:1.0$/eu.fasten.maven.b/B.mB1()%2Fjava.lang%2FVoidType",
-            "fasten://mvn!b:b:jar:1.0$/eu.fasten.maven.b/B.mB2()%2Fjava.lang%2FVoidType",
-            "fasten://mvn!b:b:jar:1.0$/eu.fasten.maven.b/B.mBi()%2Fjava.lang%2FVoidType",
-            "fasten://mvn!c:c:jar:1.0$/eu.fasten.maven.c/C.mC1()%2Fjava.lang%2FVoidType",
-            "fasten://mvn!c:c:jar:1.0$/eu.fasten.maven.c/C.mC2()%2Fjava.lang%2FVoidType"), uirs.values());
+        // All stitched nodes
+        assertEquals(
+            SetUtils.hashSet(
+                "fasten://mvn!project$1.0-SNAPSHOT/eu.fasten.maven.a/A.%3Cinit%3E()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!project$1.0-SNAPSHOT/eu.fasten.maven.a/A.m1()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!project$1.0-SNAPSHOT/eu.fasten.maven.a/A.m2()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mB1()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mBi()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!c:c$1.0/eu.fasten.maven.c/C.mC1()%2Fjava.lang%2FVoidType",
+                "/eu.fasten.maven.missing/Missing.mMissing()%2Fjava.lang%2FVoidType",
+                "/java.lang/Object.%3Cinit%3E()VoidType"),
+            nodes.stream().map(node -> node.getFullURI()).collect(Collectors.toSet()));
+
+        // Resolved node URIs
+        assertEquals(
+            SetUtils.hashSet(
+                "fasten://mvn!project$1.0-SNAPSHOT/eu.fasten.maven.a/A.%3Cinit%3E()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!project$1.0-SNAPSHOT/eu.fasten.maven.a/A.m1()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!project$1.0-SNAPSHOT/eu.fasten.maven.a/A.m2()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mB1()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mBi()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!c:c$1.0/eu.fasten.maven.c/C.mC1()%2Fjava.lang%2FVoidType"),
+            nodes.stream().filter(node -> node.getScope() != JavaScope.externalTypes).map(node -> node.getFullURI())
+                .collect(Collectors.toSet()));
     }
 }

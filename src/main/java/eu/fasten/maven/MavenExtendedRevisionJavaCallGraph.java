@@ -40,7 +40,7 @@ public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCall
     /**
      * Creates {@link ExtendedRevisionJavaCallGraph} with the given builder.
      *
-     * @param artifact the artifact from which the graph was built
+     * @param graphFile the file in which the graph was serialized
      * @param builder builder for {@link ExtendedRevisionJavaCallGraph}
      */
     public MavenExtendedRevisionJavaCallGraph(File graphFile,
@@ -52,7 +52,7 @@ public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCall
     }
 
     /**
-     * @return the artifact from which the graph was built
+     * @return the file in which the graph was serialized
      */
     public File getGraphFile()
     {
