@@ -20,7 +20,11 @@
 package eu.fasten.maven;
 
 import java.io.File;
+import java.io.InputStream;
 import java.util.Map;
+
+import org.json.JSONObject;
+import org.json.JSONTokener;
 
 import eu.fasten.core.data.ExtendedBuilder;
 import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
@@ -29,7 +33,7 @@ import eu.fasten.core.data.JavaScope;
 import eu.fasten.core.data.JavaType;
 
 /**
- * Extends {@link ExtendedRevisionJavaCallGraph} to add Maven specifc information.
+ * Extends {@link ExtendedRevisionJavaCallGraph} to add Maven specific information.
  * 
  * @version $Id$
  */
@@ -40,13 +44,26 @@ public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCall
     /**
      * Creates {@link ExtendedRevisionJavaCallGraph} with the given builder.
      *
-     * @param graphFile the file in which the graph was serialized
      * @param builder builder for {@link ExtendedRevisionJavaCallGraph}
+     * @param graphFile the file in which the graph was serialized
      */
-    public MavenExtendedRevisionJavaCallGraph(File graphFile,
-        ExtendedBuilder<Map<JavaScope, Map<FastenURI, JavaType>>> builder)
+    public MavenExtendedRevisionJavaCallGraph(ExtendedBuilder<Map<JavaScope, Map<FastenURI, JavaType>>> builder,
+        File graphFile)
     {
         super(builder);
+
+        this.graphFile = graphFile;
+    }
+
+    /**
+     * Creates {@link ExtendedRevisionJavaCallGraph} with the given json content.
+     * 
+     * @param content the json content to parse
+     * @param graphFile the file in which the graph was serialized
+     */
+    public MavenExtendedRevisionJavaCallGraph(InputStream content, File graphFile)
+    {
+        super(new JSONObject(new JSONTokener(content)));
 
         this.graphFile = graphFile;
     }

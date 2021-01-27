@@ -20,7 +20,9 @@
 package eu.fasten.maven;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +30,10 @@ import java.util.List;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -61,6 +67,8 @@ public class CheckMojo extends AbstractMojo
     @Parameter(defaultValue = "CHA")
     private String genAlgorithm;
 
+    private CloseableHttpClient httpclient;
+
     StitchedGraph graph;
 
     @Override
@@ -72,6 +80,9 @@ public class CheckMojo extends AbstractMojo
 
             return;
         }
+
+        // TODO: switch off when Maven is in offline mode
+        this.httpclient = HttpClients.createSystem();
 
         getLog().info("Generating local call graph of the project.");
 
@@ -152,16 +163,65 @@ public class CheckMojo extends AbstractMojo
         File outputFile = new File(this.outputDirectory,
             artifact.getGroupId() + '/' + artifact.getArtifactId() + '/' + artifact.getFile().getName() + ".json");
 
-        // TODO: Try to find it on the FASTEN server first
-
-        // Fallback on build it locally
-
-        String productName = artifact.getGroupId() + ':' + artifact.getArtifactId();
-        if (StringUtils.isNotEmpty(artifact.getClassifier())) {
-            productName += artifact.getClassifier();
+        MavenExtendedRevisionJavaCallGraph callGraph = null;
+        try {
+            callGraph = downloadCallGraph(artifact, outputFile);
+        } catch (Exception e) {
+            getLog().warn("Unexpected error code when downloading the artifact call graph", e);
         }
 
-        return buildCallGraph(artifact.getFile(), outputFile, productName, artifact.getVersion());
+        if (callGraph == null) {
+            // Fallback on build it locally
+
+            String productName = artifact.getGroupId() + ':' + artifact.getArtifactId();
+            if (StringUtils.isNotEmpty(artifact.getClassifier())) {
+                productName += artifact.getClassifier();
+            }
+
+            callGraph = buildCallGraph(artifact.getFile(), outputFile, productName, artifact.getVersion());
+        }
+
+        return callGraph;
+    }
+
+    private MavenExtendedRevisionJavaCallGraph downloadCallGraph(Artifact artifact, File outputFile) throws IOException
+    {
+        StringBuilder builder = new StringBuilder("https://api.fasten-project.eu/mvn/");
+
+        builder.append(artifact.getArtifactId().charAt(0));
+        builder.append('/');
+        builder.append(artifact.getArtifactId());
+        builder.append('/');
+        builder.append(artifact.getArtifactId());
+        builder.append('_');
+        builder.append(artifact.getGroupId());
+        builder.append('_');
+        builder.append(artifact.getVersion());
+        builder.append(".json");
+
+        // TODO: add qualifier and type ?
+
+        String url = builder.toString();
+
+        getLog().info("Downloading call graph for artifact " + artifact + " on " + url);
+
+        HttpGet httpGet = new HttpGet(url);
+
+        try (CloseableHttpResponse response = this.httpclient.execute(httpGet)) {
+            if (response.getCode() == 200) {
+                // Serialize the json
+                FileUtils.copyInputStreamToFile(response.getEntity().getContent(), outputFile);
+
+                // Parse the json
+                try (InputStream stream = new FileInputStream(outputFile)) {
+                    return new MavenExtendedRevisionJavaCallGraph(stream, outputFile);
+                }
+            } else {
+                getLog().warn("Unexpected code when downloading the artifact call graph: " + response.getCode());
+            }
+        }
+
+        return null;
     }
 
     private MavenExtendedRevisionJavaCallGraph buildCallGraph(File file, File outputFile, String product,
@@ -169,10 +229,9 @@ public class CheckMojo extends AbstractMojo
     {
         PartialCallGraph input = new PartialCallGraph(new CallGraphConstructor(file, null, this.genAlgorithm));
 
-        MavenExtendedRevisionJavaCallGraph cg = new MavenExtendedRevisionJavaCallGraph(outputFile,
-            ExtendedRevisionJavaCallGraph.extendedBuilder().graph(input.getGraph()).product(product).version(version)
-                .timestamp(0).cgGenerator("").forge("").classHierarchy(input.getClassHierarchy())
-                .nodeCount(input.getNodeCount()));
+        MavenExtendedRevisionJavaCallGraph cg = new MavenExtendedRevisionJavaCallGraph(ExtendedRevisionJavaCallGraph
+            .extendedBuilder().graph(input.getGraph()).product(product).version(version).timestamp(0).cgGenerator("")
+            .forge("").classHierarchy(input.getClassHierarchy()).nodeCount(input.getNodeCount()), outputFile);
 
         // Remember the call graph in a file
 

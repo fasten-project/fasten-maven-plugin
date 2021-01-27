@@ -71,48 +71,20 @@ class CheckMojoTest
 
     private File projectWorkDirTargetClasses;
 
-    private File dependencyBDir;
-
-    private File dependencyCDir;
-
     private MavenProject project = new MavenProject();
 
     @BeforeEach
-    void beforeEach() throws IllegalAccessException, IOException
+    void beforeEach()
     {
         this.testWorkDir = new File("target/test-" + new Date().getTime()).getAbsoluteFile();
-        this.projectWorkDir = new File(this.testWorkDir, "A/");
-        this.projectWorkDirTarget = new File(this.projectWorkDir, "target/");
-        this.projectWorkDirTargetClasses = new File(this.projectWorkDirTarget, "classes/");
-        this.dependencyBDir = new File(this.testWorkDir, "B.jar");
-        this.dependencyCDir = new File(this.testWorkDir, "C.jar");
-
-        FileUtils.copyDirectory(new File("target/test-classes/eu/fasten/maven/a/"),
-            new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/a/"));
-
-        jar(new File("target/test-classes/eu/fasten/maven/b/B.class"), this.dependencyBDir);
-        jar(new File("target/test-classes/eu/fasten/maven/c/C.class"), this.dependencyCDir);
 
         this.mojo.setLog(this.log);
-
-        FieldUtils.writeField(this.mojo, "project", this.project, true);
-        FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
-        FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
 
         Model model = new Model();
         model.setGroupId("pgroupid");
         model.setArtifactId("partifactid");
         model.setVersion("1.0-SNAPSHOT");
         this.project.setModel(model);
-
-        Build build = new Build();
-        build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
-        this.project.setBuild(build);
-
-        Set<Artifact> artifacts = new LinkedHashSet<>();
-        artifacts.add(artifact("b", "b", "1.0", this.dependencyBDir));
-        artifacts.add(artifact("c", "c", "1.0", this.dependencyCDir));
-        this.project.setArtifacts(artifacts);
     }
 
     private void jar(File classFile, File file) throws FileNotFoundException, IOException
@@ -137,8 +109,33 @@ class CheckMojoTest
     }
 
     @Test
-    void testStitching() throws MojoExecutionException, MojoFailureException
+    void testStitching() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException
     {
+        this.projectWorkDir = new File(this.testWorkDir, "A/");
+        this.projectWorkDirTarget = new File(this.projectWorkDir, "target/");
+        this.projectWorkDirTargetClasses = new File(this.projectWorkDirTarget, "classes/");
+        File dependencyBDir = new File(this.testWorkDir, "B.jar");
+        File dependencyCDir = new File(this.testWorkDir, "C.jar");
+
+        FileUtils.copyDirectory(new File("target/test-classes/eu/fasten/maven/a/"),
+            new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/a/"));
+
+        jar(new File("target/test-classes/eu/fasten/maven/b/B.class"), dependencyBDir);
+        jar(new File("target/test-classes/eu/fasten/maven/c/C.class"), dependencyCDir);
+
+        FieldUtils.writeField(this.mojo, "project", this.project, true);
+        FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
+        FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
+
+        Build build = new Build();
+        build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
+        this.project.setBuild(build);
+
+        Set<Artifact> artifacts = new LinkedHashSet<>();
+        artifacts.add(artifact("b", "b", "1.0", dependencyBDir));
+        artifacts.add(artifact("c", "c", "1.0", dependencyCDir));
+        this.project.setArtifacts(artifacts);
+
         this.mojo.execute();
 
         List<StitchedGraphNode> nodes = this.mojo.graph.getStichedNodes();
@@ -165,6 +162,41 @@ class CheckMojoTest
                 "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mB1()%2Fjava.lang%2FVoidType",
                 "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mBi()%2Fjava.lang%2FVoidType",
                 "fasten://mvn!c:c$1.0/eu.fasten.maven.c/C.mC1()%2Fjava.lang%2FVoidType"),
+            nodes.stream().filter(node -> node.getScope() != JavaScope.externalTypes).map(node -> node.getFullURI())
+                .collect(Collectors.toSet()));
+    }
+
+    @Test
+    void testMetadata() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException
+    {
+        this.projectWorkDir = new File(this.testWorkDir, "PROJECT/");
+        this.projectWorkDirTarget = new File(this.projectWorkDir, "target/");
+        this.projectWorkDirTargetClasses = new File(this.projectWorkDirTarget, "classes/");
+
+        FileUtils.copyDirectory(new File("target/test-classes/eu/fasten/maven/project/"),
+            new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/project/"));
+
+        FieldUtils.writeField(this.mojo, "project", this.project, true);
+        FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
+        FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
+
+        Build build = new Build();
+        build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
+        this.project.setBuild(build);
+
+        Set<Artifact> artifacts = new LinkedHashSet<>();
+        artifacts.add(artifact("org.apache.commons", "commons-lang3", "3.9", new File("commons-lang3.jar")));
+        this.project.setArtifacts(artifacts);
+
+        this.mojo.execute();
+
+        List<StitchedGraphNode> nodes = this.mojo.graph.getStichedNodes();
+
+        // Resolved node URIs
+        assertEquals(SetUtils.hashSet(
+            "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.project/ProjectClass.%3Cinit%3E()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!org.apache.commons:commons-lang3$3.9/org.apache.commons.lang3/StringUtils.capitalize(%2Fjava.lang%2FString)%2Fjava.lang%2FString",
+            "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.project/ProjectClass.m1()%2Fjava.lang%2FVoidType"),
             nodes.stream().filter(node -> node.getScope() != JavaScope.externalTypes).map(node -> node.getFullURI())
                 .collect(Collectors.toSet()));
     }
