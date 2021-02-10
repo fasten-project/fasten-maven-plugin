@@ -1,11 +1,11 @@
 package eu.fasten.maven.project;
 
-import org.apache.commons.lang3.StringUtils;
+import org.objectweb.asm.Label;
 
 public class ProjectClass
 {
-    public void m1()
+    public void m()
     {
-        StringUtils.capitalize("word");
+        new Label();
     }
 }

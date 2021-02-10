@@ -38,6 +38,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.DefaultArtifact;
+import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.Build;
 import org.apache.maven.model.Model;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -51,6 +52,7 @@ import eu.fasten.core.data.JavaScope;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link CheckMojo}.
@@ -73,8 +75,10 @@ class CheckMojoTest
 
     private MavenProject project = new MavenProject();
 
+    private MavenSession session = mock(MavenSession.class);
+
     @BeforeEach
-    void beforeEach()
+    void beforeEach() throws IllegalAccessException
     {
         this.testWorkDir = new File("target/test-" + new Date().getTime()).getAbsoluteFile();
 
@@ -85,6 +89,10 @@ class CheckMojoTest
         model.setArtifactId("partifactid");
         model.setVersion("1.0-SNAPSHOT");
         this.project.setModel(model);
+        FieldUtils.writeField(this.mojo, "project", this.project, true);
+
+        when(session.isOffline()).thenReturn(false);
+        FieldUtils.writeField(this.mojo, "session", this.session, true);
     }
 
     private void jar(File classFile, File file) throws FileNotFoundException, IOException
@@ -123,7 +131,6 @@ class CheckMojoTest
         jar(new File("target/test-classes/eu/fasten/maven/b/B.class"), dependencyBDir);
         jar(new File("target/test-classes/eu/fasten/maven/c/C.class"), dependencyCDir);
 
-        FieldUtils.writeField(this.mojo, "project", this.project, true);
         FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
         FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
 
@@ -176,7 +183,6 @@ class CheckMojoTest
         FileUtils.copyDirectory(new File("target/test-classes/eu/fasten/maven/project/"),
             new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/project/"));
 
-        FieldUtils.writeField(this.mojo, "project", this.project, true);
         FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
         FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
 
@@ -185,7 +191,7 @@ class CheckMojoTest
         this.project.setBuild(build);
 
         Set<Artifact> artifacts = new LinkedHashSet<>();
-        artifacts.add(artifact("org.apache.commons", "commons-lang3", "3.9", new File("commons-lang3.jar")));
+        artifacts.add(artifact("org.ow2.asm", "asm", "7.0", new File("asm.jar")));
         this.project.setArtifacts(artifacts);
 
         this.mojo.execute();
@@ -195,8 +201,8 @@ class CheckMojoTest
         // Resolved node URIs
         assertEquals(SetUtils.hashSet(
             "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.project/ProjectClass.%3Cinit%3E()%2Fjava.lang%2FVoidType",
-            "fasten://mvn!org.apache.commons:commons-lang3$3.9/org.apache.commons.lang3/StringUtils.capitalize(%2Fjava.lang%2FString)%2Fjava.lang%2FString",
-            "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.project/ProjectClass.m1()%2Fjava.lang%2FVoidType"),
+            "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.project/ProjectClass.m()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!org.ow2.asm:asm$7.0/org.objectweb.asm/Label.%3Cinit%3E()%2Fjava.lang%2FVoidType"),
             nodes.stream().filter(node -> node.getScope() != JavaScope.externalTypes).map(node -> node.getFullURI())
                 .collect(Collectors.toSet()));
     }

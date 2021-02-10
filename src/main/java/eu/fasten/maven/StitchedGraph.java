@@ -35,13 +35,15 @@ import eu.fasten.core.data.JavaScope;
 import eu.fasten.core.data.JavaType;
 
 /**
+ * Create and navigate a stitched call graph.
+ * 
  * @version $Id$
  */
 public class StitchedGraph
 {
-    private final ExtendedRevisionJavaCallGraph projectRCG;
+    private final MavenResolvedCallGraph projectRCG;
 
-    private final List<ExtendedRevisionJavaCallGraph> dependenciesRCGs;
+    private final List<MavenResolvedCallGraph> dependenciesRCGs;
 
     private final DirectedGraph fullGraph;
 
@@ -53,7 +55,7 @@ public class StitchedGraph
 
     private Map<FastenURI, Long> localURIToGlobalId = new HashMap<>();
 
-    public StitchedGraph(ExtendedRevisionJavaCallGraph projectRCG, List<ExtendedRevisionJavaCallGraph> dependencyRCGs)
+    public StitchedGraph(MavenResolvedCallGraph projectRCG, List<MavenResolvedCallGraph> dependencyRCGs)
     {
         this.projectRCG = projectRCG;
         this.dependenciesRCGs = new ArrayList<>(dependencyRCGs);
@@ -64,7 +66,7 @@ public class StitchedGraph
 
         long offset = append(fullBuilder, projectRCG, -1);
 
-        for (ExtendedRevisionJavaCallGraph dependencyRCG : dependencyRCGs) {
+        for (MavenResolvedCallGraph dependencyRCG : this.dependenciesRCGs) {
             offset = append(fullBuilder, dependencyRCG, offset);
         }
 
@@ -76,10 +78,10 @@ public class StitchedGraph
 
         Set<Long> handledNodes = new HashSet<>();
 
-        for (final List<Integer> l : projectRCG.getGraph().getInternalCalls().keySet()) {
+        for (final List<Integer> l : projectRCG.getGraph().getGraph().getInternalCalls().keySet()) {
             appendNodeAndSuccessors(l.get(0).longValue(), stichedBuilder, handledNodes);
         }
-        for (final List<Integer> l : projectRCG.getGraph().getExternalCalls().keySet()) {
+        for (final List<Integer> l : projectRCG.getGraph().getGraph().getExternalCalls().keySet()) {
             appendNodeAndSuccessors(l.get(0).longValue(), stichedBuilder, handledNodes);
         }
 
@@ -153,12 +155,12 @@ public class StitchedGraph
     /**
      * @return the project's {@link ExtendedRevisionJavaCallGraph}
      */
-    public ExtendedRevisionJavaCallGraph getProjectRCG()
+    public MavenResolvedCallGraph getProjectRCG()
     {
         return this.projectRCG;
     }
 
-    private long append(ArrayImmutableDirectedGraph.Builder builder, ExtendedRevisionJavaCallGraph rcg, long offset)
+    private long append(ArrayImmutableDirectedGraph.Builder builder, MavenResolvedCallGraph rcg, long offset)
     {
         long biggest = offset;
 
@@ -168,20 +170,20 @@ public class StitchedGraph
         biggest = Math.max(biggest, addMethods(JavaScope.externalTypes, rcg, offset, true, builder));
 
         // Arcs
-        for (final List<Integer> l : rcg.getGraph().getInternalCalls().keySet()) {
+        for (final List<Integer> l : rcg.getGraph().getGraph().getInternalCalls().keySet()) {
             builder.addArc(toGraphId(offset, l.get(0)), toGraphId(offset, l.get(1)));
         }
-        for (final List<Integer> l : rcg.getGraph().getExternalCalls().keySet()) {
+        for (final List<Integer> l : rcg.getGraph().getGraph().getExternalCalls().keySet()) {
             builder.addArc(toGraphId(offset, l.get(0)), toGraphId(offset, l.get(1)));
         }
 
         return biggest;
     }
 
-    private long addMethods(JavaScope scope, ExtendedRevisionJavaCallGraph rcg, long offset, boolean external,
+    private long addMethods(JavaScope scope, MavenResolvedCallGraph rcg, long offset, boolean external,
         ArrayImmutableDirectedGraph.Builder builder)
     {
-        Map<FastenURI, JavaType> types = rcg.getClassHierarchy().get(scope);
+        Map<FastenURI, JavaType> types = rcg.getGraph().getClassHierarchy().get(scope);
 
         long biggest = offset;
 
@@ -218,8 +220,8 @@ public class StitchedGraph
         return biggest;
     }
 
-    private void addNode(long globalId, JavaScope scope, JavaNode node, ExtendedRevisionJavaCallGraph rcg,
-        boolean external, ArrayImmutableDirectedGraph.Builder builder)
+    private void addNode(long globalId, JavaScope scope, JavaNode node, MavenResolvedCallGraph rcg, boolean external,
+        ArrayImmutableDirectedGraph.Builder builder)
     {
         if (external) {
             builder.addExternalNode(globalId);

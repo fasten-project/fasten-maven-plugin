@@ -39,7 +39,9 @@ import eu.fasten.core.data.JavaType;
  */
 public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCallGraph
 {
-    private File graphFile;
+    private final boolean remote;
+
+    private final File graphFile;
 
     /**
      * Creates {@link ExtendedRevisionJavaCallGraph} with the given builder.
@@ -52,6 +54,7 @@ public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCall
     {
         super(builder);
 
+        this.remote = false;
         this.graphFile = graphFile;
     }
 
@@ -65,7 +68,16 @@ public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCall
     {
         super(new JSONObject(new JSONTokener(content)));
 
+        this.remote = true;
         this.graphFile = graphFile;
+    }
+
+    /**
+     * @return true if it's a remote graph
+     */
+    public boolean isRemote()
+    {
+        return this.remote;
     }
 
     /**

@@ -25,16 +25,22 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.maven.artifact.Artifact;
+import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -43,11 +49,15 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.json.JSONTokener;
 
 import eu.fasten.analyzer.javacgopal.data.CallGraphConstructor;
 import eu.fasten.analyzer.javacgopal.data.PartialCallGraph;
 import eu.fasten.analyzer.javacgopal.data.exceptions.OPALException;
 import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
+import eu.fasten.core.data.JavaScope;
 import eu.fasten.core.merge.LocalMerger;
 
 /**
@@ -58,6 +68,9 @@ import eu.fasten.core.merge.LocalMerger;
 @Mojo(name = "check", defaultPhase = LifecyclePhase.VERIFY, requiresDependencyResolution = ResolutionScope.RUNTIME, requiresProject = true, threadSafe = true)
 public class CheckMojo extends AbstractMojo
 {
+    @Parameter(defaultValue = "${session}", required = true, readonly = true)
+    private MavenSession session;
+
     @Parameter(defaultValue = "${project}", required = true, readonly = true)
     private MavenProject project;
 
@@ -76,19 +89,21 @@ public class CheckMojo extends AbstractMojo
     {
         // Only JAR packages are supported right now
         if (!this.project.getPackaging().equals("jar")) {
-            getLog().warn("Only project with packaging JAR are supported. Skipping.");
+            getLog().info("Only project with packaging JAR are supported. Skipping.");
 
             return;
         }
 
-        // TODO: switch off when Maven is in offline mode
-        this.httpclient = HttpClients.createSystem();
+        // Switch off remote access when Maven is in offline mode
+        if (!this.session.isOffline()) {
+            this.httpclient = HttpClients.createSystem();
+        }
 
         getLog().info("Generating local call graph of the project.");
 
         // Build project call graph
         File projectCallGraphFile = new File(this.outputDirectory, "project.json");
-        ExtendedRevisionJavaCallGraph projectCG;
+        MavenExtendedRevisionJavaCallGraph projectCG;
         try {
             projectCG = buildCallGraph(new File(this.project.getBuild().getOutputDirectory()), projectCallGraphFile,
                 this.project.getGroupId() + ':' + this.project.getArtifactId(), this.project.getVersion());
@@ -105,11 +120,13 @@ public class CheckMojo extends AbstractMojo
             getLog().info("Generating call graphs for dependency [" + artifact + "].");
             try {
                 MavenExtendedRevisionJavaCallGraph mcg = getCallGraph(artifact);
-                dependenciesCGs.add(mcg);
-                all.add(mcg);
+                if (mcg != null) {
+                    dependenciesCGs.add(mcg);
+                    all.add(mcg);
+                }
             } catch (Exception e) {
                 getLog().warn("Failed to generate a call graph for artifact [" + artifact + "]: "
-                    + ExceptionUtils.getRootCauseMessage(e) + "");
+                    + ExceptionUtils.getRootCauseMessage(e));
             }
         }
 
@@ -119,11 +136,11 @@ public class CheckMojo extends AbstractMojo
         LocalMerger resolver = new LocalMerger(all);
 
         // Produce the resolved graph for the project
-        ExtendedRevisionJavaCallGraph projectRCG =
+        MavenResolvedCallGraph projectRCG =
             resolveCG(resolver, projectCG, new File(this.outputDirectory, "project.resolved.json"));
 
         // Produce the resolved graph for each dependency
-        List<ExtendedRevisionJavaCallGraph> dependenciesRCGs = new ArrayList<>(dependenciesCGs.size());
+        List<MavenResolvedCallGraph> dependenciesRCGs = new ArrayList<>(dependenciesCGs.size());
         for (MavenExtendedRevisionJavaCallGraph dependencyCG : dependenciesCGs) {
             File outputFile =
                 new File(dependencyCG.getGraphFile().getParentFile(), dependencyCG.getGraphFile().getName().substring(0,
@@ -132,13 +149,63 @@ public class CheckMojo extends AbstractMojo
             dependenciesRCGs.add(resolveCG(resolver, dependencyCG, outputFile));
         }
 
-        // Produce stitched call grahs
+        // Produce the stitched call graph
         getLog().info("Produce stitched call graphs.");
 
         this.graph = new StitchedGraph(projectRCG, dependenciesRCGs);
+
+        // Enrich the stitched call graph
+        try {
+            enrich();
+        } catch (IOException e) {
+            getLog().warn("Failed to enrich the stitched graph", e);
+        }
+
+        // TODO: Analyze the stitched call graph
+
     }
 
-    private ExtendedRevisionJavaCallGraph resolveCG(LocalMerger merger, ExtendedRevisionJavaCallGraph cg,
+    private void enrich() throws IOException
+    {
+        if (this.httpclient == null) {
+            // Offline mode
+            return;
+        }
+
+        List<StitchedGraphNode> nodes = this.graph.getStichedNodes();
+
+        Map<String, StitchedGraphNode> map = new HashMap<>();
+        JSONArray json = new JSONArray();
+        for (StitchedGraphNode node : nodes) {
+            if (node.getPackageRCG().isRemote() && node.getScope() == JavaScope.internalTypes) {
+                String fullURI = node.getFullURI();
+                json.put(fullURI);
+                map.put(fullURI, node);
+            }
+        }
+
+        HttpPost httpPost = new HttpPost("https://api.fasten-project.eu/api/metadata/callables?allAttributes=true");
+
+        httpPost.setEntity(new StringEntity(json.toString(), ContentType.APPLICATION_JSON));
+
+        try (CloseableHttpResponse response = this.httpclient.execute(httpPost)) {
+            if (response.getCode() == 200) {
+                JSONObject responseData = new JSONObject(new JSONTokener(response.getEntity().getContent()));
+
+                for (String uri : responseData.keySet()) {
+                    StitchedGraphNode node = map.get(uri);
+
+                    JSONObject metadata = (JSONObject) responseData.get(uri);
+
+                    node.getLocalNode().getMetadata().putAll(metadata.toMap());
+                }
+            } else {
+                getLog().warn("Unexpected code when resolving nodes metadata: " + response.getCode());
+            }
+        }
+    }
+
+    private MavenResolvedCallGraph resolveCG(LocalMerger merger, MavenExtendedRevisionJavaCallGraph cg,
         File mergeCallGraphFile) throws MojoExecutionException
     {
         getLog().info("Generating resolved call graphs and serializing it on [" + mergeCallGraphFile + "].");
@@ -151,7 +218,7 @@ public class CheckMojo extends AbstractMojo
             throw new MojoExecutionException("Failed to serialize the merged call graph", e);
         }
 
-        return mergedCG;
+        return new MavenResolvedCallGraph(cg.isRemote(), mergedCG);
     }
 
     private MavenExtendedRevisionJavaCallGraph getCallGraph(Artifact artifact) throws IOException, OPALException
@@ -186,6 +253,11 @@ public class CheckMojo extends AbstractMojo
 
     private MavenExtendedRevisionJavaCallGraph downloadCallGraph(Artifact artifact, File outputFile) throws IOException
     {
+        if (this.httpclient == null) {
+            // Offline mode
+            return null;
+        }
+
         StringBuilder builder = new StringBuilder("https://api.fasten-project.eu/mvn/");
 
         builder.append(artifact.getArtifactId().charAt(0));
@@ -199,7 +271,7 @@ public class CheckMojo extends AbstractMojo
         builder.append(artifact.getVersion());
         builder.append(".json");
 
-        // TODO: add qualifier and type ?
+        // TODO: add qualifier and type support
 
         String url = builder.toString();
 

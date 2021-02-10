@@ -20,7 +20,6 @@
 package eu.fasten.maven;
 
 import eu.fasten.core.data.Constants;
-import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
 import eu.fasten.core.data.JavaNode;
 import eu.fasten.core.data.JavaScope;
 import eu.fasten.core.utils.FastenUriUtils;
@@ -38,9 +37,9 @@ public class StitchedGraphNode
 
     private final JavaNode localNode;
 
-    private final ExtendedRevisionJavaCallGraph packageRCG;
+    private final MavenResolvedCallGraph packageRCG;
 
-    public StitchedGraphNode(long globalId, JavaScope scope, JavaNode node, ExtendedRevisionJavaCallGraph packageRCG)
+    public StitchedGraphNode(long globalId, JavaScope scope, JavaNode node, MavenResolvedCallGraph packageRCG)
     {
         this.globalId = globalId;
         this.scope = scope;
@@ -75,7 +74,7 @@ public class StitchedGraphNode
     /**
      * @return the package resolved call graph
      */
-    public ExtendedRevisionJavaCallGraph getPackageRCG()
+    public MavenResolvedCallGraph getPackageRCG()
     {
         return this.packageRCG;
     }
@@ -86,8 +85,8 @@ public class StitchedGraphNode
         if (this.scope == JavaScope.externalTypes) {
             return this.localNode.getUri().toString();
         } else {
-            return FastenUriUtils.generateFullFastenUri(Constants.mvnForge, this.packageRCG.product,
-                this.packageRCG.version, this.localNode.getUri().toString());
+            return FastenUriUtils.generateFullFastenUri(Constants.mvnForge, this.packageRCG.getGraph().product,
+                this.packageRCG.getGraph().version, this.localNode.getUri().toString());
         }
     }
 }
