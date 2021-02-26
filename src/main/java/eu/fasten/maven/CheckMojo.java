@@ -1,21 +1,19 @@
 /*
- * See the NOTICE file distributed with this work for additional
- * information regarding copyright ownership.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package eu.fasten.maven;
 
@@ -23,11 +21,16 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -39,6 +42,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.net.URIBuilder;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
@@ -59,13 +63,18 @@ import eu.fasten.analyzer.javacgopal.data.exceptions.OPALException;
 import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
 import eu.fasten.core.data.JavaScope;
 import eu.fasten.core.merge.LocalMerger;
+import eu.fasten.maven.analyzer.MavenRiskContext;
+import eu.fasten.maven.analyzer.RiskAnalyzer;
+import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
+import eu.fasten.maven.analyzer.RiskContext;
+import eu.fasten.maven.analyzer.RiskReport;
 
 /**
  * Build a call graph of the module and its dependencies.
  *
  * @version $Id: 982ced7f89e6c39126d28b2f9e5fcac365250288 $
  */
-@Mojo(name = "check", defaultPhase = LifecyclePhase.VERIFY, requiresDependencyResolution = ResolutionScope.RUNTIME, requiresProject = true, threadSafe = true)
+@Mojo(name = "check", defaultPhase = LifecyclePhase.VERIFY, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME, requiresProject = true, threadSafe = true)
 public class CheckMojo extends AbstractMojo
 {
     @Parameter(defaultValue = "${session}", required = true, readonly = true)
@@ -80,9 +89,19 @@ public class CheckMojo extends AbstractMojo
     @Parameter(defaultValue = "CHA")
     private String genAlgorithm;
 
+    @Parameter(defaultValue = "true", property = "failOnRisk")
+    private boolean failOnRisk;
+
+    @Parameter
+    private List<RiskAnalyzerConfiguration> configurations;
+
+    private List<RiskAnalyzer> analyzers;
+
     private CloseableHttpClient httpclient;
 
     StitchedGraph graph;
+
+    List<RiskReport> reports;
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException
@@ -105,8 +124,9 @@ public class CheckMojo extends AbstractMojo
         File projectCallGraphFile = new File(this.outputDirectory, "project.json");
         MavenExtendedRevisionJavaCallGraph projectCG;
         try {
-            projectCG = buildCallGraph(new File(this.project.getBuild().getOutputDirectory()), projectCallGraphFile,
-                this.project.getGroupId() + ':' + this.project.getArtifactId(), this.project.getVersion());
+            projectCG =
+                buildCallGraph(this.project.getArtifact(), new File(this.project.getBuild().getOutputDirectory()),
+                    projectCallGraphFile, this.project.getGroupId() + ':' + this.project.getArtifactId());
         } catch (OPALException e) {
             throw new MojoExecutionException(
                 "Failed to build a call graph for directory [" + this.project.getBuild().getOutputDirectory() + "]", e);
@@ -157,15 +177,101 @@ public class CheckMojo extends AbstractMojo
         // Enrich the stitched call graph
         try {
             enrich();
-        } catch (IOException e) {
+        } catch (IOException | URISyntaxException e) {
             getLog().warn("Failed to enrich the stitched graph", e);
         }
 
-        // TODO: Analyze the stitched call graph
-
+        // Analyze the stitched call graph
+        analyze();
     }
 
-    private void enrich() throws IOException
+    private List<RiskAnalyzer> getAnalyzers() throws MojoExecutionException
+    {
+        if (this.analyzers == null) {
+            if (this.configurations == null) {
+                this.analyzers = Collections.emptyList();
+            } else {
+                this.analyzers = new ArrayList<>(this.configurations.size());
+
+                for (RiskAnalyzerConfiguration configuration : this.configurations) {
+                    RiskAnalyzer analyzer;
+                    try {
+                        analyzer = createAnalyzer(configuration.getType());
+                    } catch (Exception e) {
+                        throw new MojoExecutionException(
+                            "Failed to create an analyzer for type " + configuration.getType(), e);
+                    }
+
+                    if (analyzer == null) {
+                        throw new MojoExecutionException(
+                            "Could not find any analyzer for type " + configuration.getType());
+                    }
+
+                    analyzer.initialize(configuration);
+
+                    this.analyzers.add(analyzer);
+                }
+            }
+        }
+
+        return this.analyzers;
+    }
+
+    private RiskAnalyzer createAnalyzer(String type) throws InstantiationException, IllegalAccessException,
+        IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException
+    {
+        // Try standard analyzers
+        if (type.startsWith("fasten.")) {
+            String className = "eu.fasten.maven.analyzer." + StringUtils.capitalize(type.substring("fasten.".length()))
+                + "RiskAnalyzer";
+            try {
+                Class<RiskAnalyzer> clazz = (Class) Thread.currentThread().getContextClassLoader().loadClass(className);
+
+                return clazz.getDeclaredConstructor().newInstance();
+            } catch (ClassNotFoundException e) {
+                getLog().debug("Failed to find the class for name " + className, e);
+            }
+        }
+
+        // Try custom analyzer
+        try {
+            Class<RiskAnalyzer> clazz = (Class) Thread.currentThread().getContextClassLoader().loadClass(type);
+
+            return clazz.getDeclaredConstructor().newInstance();
+        } catch (ClassNotFoundException e) {
+            getLog().debug("Failed to find the class for name " + type, e);
+        }
+
+        return null;
+    }
+
+    private void analyze() throws MojoFailureException, MojoExecutionException
+    {
+        RiskContext context = new MavenRiskContext(this.graph, this.session, this.project);
+
+        // Execute analyzers
+        this.reports = new ArrayList<>();
+        for (RiskAnalyzer riskAnalyzer : getAnalyzers()) {
+            getLog().info("Executing analyzer " + riskAnalyzer + "");
+
+            this.reports.add(riskAnalyzer.analyze(context));
+        }
+
+        boolean foundErrors = false;
+        for (RiskReport report : reports) {
+            foundErrors |= !report.getErrors().isEmpty();
+
+            getLog().info(report.getAnalyzer() + ": ");
+            report.getErrors().forEach(r -> getLog().error("  " + r));
+            report.getWarnings().forEach(r -> getLog().warn("  " + r));
+        }
+
+        if (foundErrors && this.failOnRisk) {
+            throw new MojoFailureException("Risk(s) have been found in the project dependencies");
+        }
+    }
+
+    private void enrich() throws IOException, URISyntaxException, MojoExecutionException
     {
         if (this.httpclient == null) {
             // Offline mode
@@ -184,25 +290,41 @@ public class CheckMojo extends AbstractMojo
             }
         }
 
-        HttpPost httpPost = new HttpPost("https://api.fasten-project.eu/api/metadata/callables?allAttributes=true");
+        if (!map.isEmpty()) {
+            // Get the list of metadata to retrieve
+            HttpPost httpPost = createMetadataCollableRequest(json);
+            try (CloseableHttpResponse response = this.httpclient.execute(httpPost)) {
+                if (response.getCode() == 200) {
+                    JSONObject responseData = new JSONObject(new JSONTokener(response.getEntity().getContent()));
+
+                    for (String uri : responseData.keySet()) {
+                        StitchedGraphNode node = map.get(uri);
+
+                        JSONObject metadata = (JSONObject) responseData.get(uri);
+
+                        node.getLocalNode().getMetadata().putAll(metadata.toMap());
+                    }
+                } else {
+                    getLog().warn("Unexpected code when resolving nodes metadata: " + response.getCode());
+                }
+            }
+        }
+    }
+
+    private HttpPost createMetadataCollableRequest(JSONArray json) throws URISyntaxException, MojoExecutionException
+    {
+        URIBuilder builder = new URIBuilder("https://api.fasten-project.eu/api/metadata/callables");
+        Set<String> metadataNames = new HashSet<>();
+        for (RiskAnalyzer anlyzers : getAnalyzers()) {
+            metadataNames.addAll(anlyzers.getMetadatas());
+        }
+        metadataNames.forEach(e -> builder.addParameter("attributes", e));
+
+        HttpPost httpPost = new HttpPost(builder.build());
 
         httpPost.setEntity(new StringEntity(json.toString(), ContentType.APPLICATION_JSON));
 
-        try (CloseableHttpResponse response = this.httpclient.execute(httpPost)) {
-            if (response.getCode() == 200) {
-                JSONObject responseData = new JSONObject(new JSONTokener(response.getEntity().getContent()));
-
-                for (String uri : responseData.keySet()) {
-                    StitchedGraphNode node = map.get(uri);
-
-                    JSONObject metadata = (JSONObject) responseData.get(uri);
-
-                    node.getLocalNode().getMetadata().putAll(metadata.toMap());
-                }
-            } else {
-                getLog().warn("Unexpected code when resolving nodes metadata: " + response.getCode());
-            }
-        }
+        return httpPost;
     }
 
     private MavenResolvedCallGraph resolveCG(LocalMerger merger, MavenExtendedRevisionJavaCallGraph cg,
@@ -218,7 +340,7 @@ public class CheckMojo extends AbstractMojo
             throw new MojoExecutionException("Failed to serialize the merged call graph", e);
         }
 
-        return new MavenResolvedCallGraph(cg.isRemote(), mergedCG);
+        return new MavenResolvedCallGraph(cg.getArtifact(), cg.isRemote(), mergedCG);
     }
 
     private MavenExtendedRevisionJavaCallGraph getCallGraph(Artifact artifact) throws IOException, OPALException
@@ -245,7 +367,7 @@ public class CheckMojo extends AbstractMojo
                 productName += artifact.getClassifier();
             }
 
-            callGraph = buildCallGraph(artifact.getFile(), outputFile, productName, artifact.getVersion());
+            callGraph = buildCallGraph(artifact, outputFile, productName);
         }
 
         return callGraph;
@@ -286,7 +408,7 @@ public class CheckMojo extends AbstractMojo
 
                 // Parse the json
                 try (InputStream stream = new FileInputStream(outputFile)) {
-                    return new MavenExtendedRevisionJavaCallGraph(stream, outputFile);
+                    return new MavenExtendedRevisionJavaCallGraph(artifact, stream, outputFile);
                 }
             } else {
                 getLog().warn("Unexpected code when downloading the artifact call graph: " + response.getCode());
@@ -296,14 +418,22 @@ public class CheckMojo extends AbstractMojo
         return null;
     }
 
-    private MavenExtendedRevisionJavaCallGraph buildCallGraph(File file, File outputFile, String product,
-        String version) throws OPALException
+    private MavenExtendedRevisionJavaCallGraph buildCallGraph(Artifact artifact, File outputFile, String product)
+        throws OPALException
+    {
+        return buildCallGraph(artifact, artifact.getFile(), outputFile, product);
+    }
+
+    private MavenExtendedRevisionJavaCallGraph buildCallGraph(Artifact artifact, File file, File outputFile,
+        String product) throws OPALException
     {
         PartialCallGraph input = new PartialCallGraph(new CallGraphConstructor(file, null, this.genAlgorithm));
 
-        MavenExtendedRevisionJavaCallGraph cg = new MavenExtendedRevisionJavaCallGraph(ExtendedRevisionJavaCallGraph
-            .extendedBuilder().graph(input.getGraph()).product(product).version(version).timestamp(0).cgGenerator("")
-            .forge("").classHierarchy(input.getClassHierarchy()).nodeCount(input.getNodeCount()), outputFile);
+        MavenExtendedRevisionJavaCallGraph cg = new MavenExtendedRevisionJavaCallGraph(artifact,
+            ExtendedRevisionJavaCallGraph.extendedBuilder().graph(input.getGraph()).product(product)
+                .version(artifact.getVersion()).timestamp(0).cgGenerator("").forge("")
+                .classHierarchy(input.getClassHierarchy()).nodeCount(input.getNodeCount()),
+            outputFile);
 
         // Remember the call graph in a file
 
@@ -313,7 +443,7 @@ public class CheckMojo extends AbstractMojo
         try {
             FileUtils.write(outputFile, cg.toJSON().toString(4), StandardCharsets.UTF_8);
         } catch (Exception e) {
-            getLog().warn("Failed to serialize the call graph for artifact [" + file + "]: "
+            getLog().warn("Failed to serialize the call graph for artifact [" + artifact + "]: "
                 + ExceptionUtils.getRootCauseMessage(e));
         }
 

@@ -23,7 +23,9 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -49,8 +51,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import eu.fasten.core.data.JavaScope;
+import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -90,6 +94,8 @@ class CheckMojoTest
         model.setVersion("1.0-SNAPSHOT");
         this.project.setModel(model);
         FieldUtils.writeField(this.mojo, "project", this.project, true);
+
+        this.project.setArtifact(artifact("pgroupid", "partifactid", "1.0-SNAPSHOT", null));
 
         when(session.isOffline()).thenReturn(false);
         FieldUtils.writeField(this.mojo, "session", this.session, true);
@@ -150,9 +156,9 @@ class CheckMojoTest
         // All stitched nodes
         assertEquals(
             SetUtils.hashSet(
-                "fasten://mvn!project$1.0-SNAPSHOT/eu.fasten.maven.a/A.%3Cinit%3E()%2Fjava.lang%2FVoidType",
-                "fasten://mvn!project$1.0-SNAPSHOT/eu.fasten.maven.a/A.m1()%2Fjava.lang%2FVoidType",
-                "fasten://mvn!project$1.0-SNAPSHOT/eu.fasten.maven.a/A.m2()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.%3Cinit%3E()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m1()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m2()%2Fjava.lang%2FVoidType",
                 "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mB1()%2Fjava.lang%2FVoidType",
                 "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mBi()%2Fjava.lang%2FVoidType",
                 "fasten://mvn!c:c$1.0/eu.fasten.maven.c/C.mC1()%2Fjava.lang%2FVoidType",
@@ -163,9 +169,9 @@ class CheckMojoTest
         // Resolved node URIs
         assertEquals(
             SetUtils.hashSet(
-                "fasten://mvn!project$1.0-SNAPSHOT/eu.fasten.maven.a/A.%3Cinit%3E()%2Fjava.lang%2FVoidType",
-                "fasten://mvn!project$1.0-SNAPSHOT/eu.fasten.maven.a/A.m1()%2Fjava.lang%2FVoidType",
-                "fasten://mvn!project$1.0-SNAPSHOT/eu.fasten.maven.a/A.m2()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.%3Cinit%3E()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m1()%2Fjava.lang%2FVoidType",
+                "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m2()%2Fjava.lang%2FVoidType",
                 "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mB1()%2Fjava.lang%2FVoidType",
                 "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mBi()%2Fjava.lang%2FVoidType",
                 "fasten://mvn!c:c$1.0/eu.fasten.maven.c/C.mC1()%2Fjava.lang%2FVoidType"),
@@ -205,5 +211,62 @@ class CheckMojoTest
             "fasten://mvn!org.ow2.asm:asm$7.0/org.objectweb.asm/Label.%3Cinit%3E()%2Fjava.lang%2FVoidType"),
             nodes.stream().filter(node -> node.getScope() != JavaScope.externalTypes).map(node -> node.getFullURI())
                 .collect(Collectors.toSet()));
+    }
+
+    @Test
+    void testBinary() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException
+    {
+        this.projectWorkDir = new File(this.testWorkDir, "A/");
+        this.projectWorkDirTarget = new File(this.projectWorkDir, "target/");
+        this.projectWorkDirTargetClasses = new File(this.projectWorkDirTarget, "classes/");
+        File dependencyBDir = new File(this.testWorkDir, "B.jar");
+        File dependencyCDir = new File(this.testWorkDir, "C.jar");
+
+        FileUtils.copyDirectory(new File("target/test-classes/eu/fasten/maven/a/"),
+            new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/a/"));
+
+        jar(new File("target/test-classes/eu/fasten/maven/b/B.class"), dependencyBDir);
+        jar(new File("target/test-classes/eu/fasten/maven/c/C.class"), dependencyCDir);
+
+        FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
+        FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
+
+        Build build = new Build();
+        build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
+        this.project.setBuild(build);
+
+        Set<Artifact> artifacts = new LinkedHashSet<>();
+        artifacts.add(artifact("b", "b", "1.0", dependencyBDir));
+        artifacts.add(artifact("c", "c", "1.0", dependencyCDir));
+        this.project.setArtifacts(artifacts);
+
+        RiskAnalyzerConfiguration configuration = new RiskAnalyzerConfiguration();
+        configuration.setType("fasten.binary");
+        FieldUtils.writeField(this.mojo, "configurations", Arrays.asList(configuration), true);
+
+        this.mojo.execute();
+
+        assertEquals(1, this.mojo.reports.size());
+
+        // Warnings
+        assertTrue(this.mojo.reports.get(0).getWarnings().isEmpty());
+
+        // Errors
+        assertEquals(
+            SetUtils.hashSet(
+                "The callable eu.fasten.maven.missing.Missing.mMissing()%2Fjava.lang%2FVoidType cannot be resolved."),
+            new HashSet<>(this.mojo.reports.get(0).getErrors()));
+
+        configuration.setIgnoredCallables(Arrays.asList("eu.fasten.maven.missing.Missing.mMissing.*"));
+
+        this.mojo.execute();
+
+        assertEquals(1, this.mojo.reports.size());
+
+        // Warnings
+        assertTrue(this.mojo.reports.get(0).getWarnings().isEmpty());
+
+        // Errors
+        assertTrue(this.mojo.reports.get(0).getErrors().isEmpty());
     }
 }
