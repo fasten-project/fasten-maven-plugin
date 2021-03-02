@@ -95,6 +95,12 @@ public class CheckMojo extends AbstractMojo
     @Parameter
     private List<RiskAnalyzerConfiguration> configurations;
 
+    @Parameter(defaultValue = "https://api.fasten-project.eu/api")
+    private String fastenApiUrl;
+
+    @Parameter(defaultValue = "https://api.fasten-project.eu/mvn")
+    private String fastenRcgUrl;
+
     private List<RiskAnalyzer> analyzers;
 
     private CloseableHttpClient httpclient;
@@ -292,7 +298,7 @@ public class CheckMojo extends AbstractMojo
 
         if (!map.isEmpty()) {
             // Get the list of metadata to retrieve
-            HttpPost httpPost = createMetadataCollableRequest(json);
+            HttpPost httpPost = createMetadataCallableRequest(json);
             try (CloseableHttpResponse response = this.httpclient.execute(httpPost)) {
                 if (response.getCode() == 200) {
                     JSONObject responseData = new JSONObject(new JSONTokener(response.getEntity().getContent()));
@@ -311,12 +317,12 @@ public class CheckMojo extends AbstractMojo
         }
     }
 
-    private HttpPost createMetadataCollableRequest(JSONArray json) throws URISyntaxException, MojoExecutionException
+    private HttpPost createMetadataCallableRequest(JSONArray json) throws URISyntaxException, MojoExecutionException
     {
-        URIBuilder builder = new URIBuilder("https://api.fasten-project.eu/api/metadata/callables");
+        URIBuilder builder = new URIBuilder(this.fastenApiUrl + "/metadata/callables");
         Set<String> metadataNames = new HashSet<>();
-        for (RiskAnalyzer anlyzers : getAnalyzers()) {
-            metadataNames.addAll(anlyzers.getMetadatas());
+        for (RiskAnalyzer analyzers : getAnalyzers()) {
+            metadataNames.addAll(analyzers.getMetadatas());
         }
         metadataNames.forEach(e -> builder.addParameter("attributes", e));
 
@@ -379,9 +385,8 @@ public class CheckMojo extends AbstractMojo
             // Offline mode
             return null;
         }
-
-        StringBuilder builder = new StringBuilder("https://api.fasten-project.eu/mvn/");
-
+        StringBuilder builder = new StringBuilder(this.fastenRcgUrl);
+        builder.append('/');
         builder.append(artifact.getArtifactId().charAt(0));
         builder.append('/');
         builder.append(artifact.getArtifactId());
