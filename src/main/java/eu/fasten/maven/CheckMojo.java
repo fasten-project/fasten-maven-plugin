@@ -17,21 +17,13 @@
  */
 package eu.fasten.maven;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.lang.reflect.InvocationTargetException;
-import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
+import eu.fasten.analyzer.javacgopal.data.CallGraphConstructor;
+import eu.fasten.analyzer.javacgopal.data.PartialCallGraph;
+import eu.fasten.analyzer.javacgopal.data.exceptions.OPALException;
+import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
+import eu.fasten.core.data.JavaScope;
+import eu.fasten.core.merge.LocalMerger;
+import eu.fasten.maven.analyzer.*;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -57,17 +49,11 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
-import eu.fasten.analyzer.javacgopal.data.CallGraphConstructor;
-import eu.fasten.analyzer.javacgopal.data.PartialCallGraph;
-import eu.fasten.analyzer.javacgopal.data.exceptions.OPALException;
-import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
-import eu.fasten.core.data.JavaScope;
-import eu.fasten.core.merge.LocalMerger;
-import eu.fasten.maven.analyzer.MavenRiskContext;
-import eu.fasten.maven.analyzer.RiskAnalyzer;
-import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
-import eu.fasten.maven.analyzer.RiskContext;
-import eu.fasten.maven.analyzer.RiskReport;
+import java.io.*;
+import java.lang.reflect.InvocationTargetException;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 /**
  * Build a call graph of the module and its dependencies.
@@ -341,7 +327,7 @@ public class CheckMojo extends AbstractMojo
         ExtendedRevisionJavaCallGraph mergedCG = merger.mergeWithCHA(cg);
 
         try {
-            FileUtils.write(mergeCallGraphFile, mergedCG.toJSON().toString(4), StandardCharsets.UTF_8);
+            writeJSON(mergedCG.toJSON(), mergeCallGraphFile);
         } catch (Exception e) {
             throw new MojoExecutionException("Failed to serialize the merged call graph", e);
         }
@@ -446,12 +432,18 @@ public class CheckMojo extends AbstractMojo
         outputFile.getParentFile().mkdirs();
 
         try {
-            FileUtils.write(outputFile, cg.toJSON().toString(4), StandardCharsets.UTF_8);
+            writeJSON(cg.toJSON(), outputFile);
         } catch (Exception e) {
             getLog().warn("Failed to serialize the call graph for artifact [" + artifact + "]: "
                 + ExceptionUtils.getRootCauseMessage(e));
         }
 
         return cg;
+    }
+
+    private void writeJSON(JSONObject json, File outputFile) throws IOException {
+        var out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outputFile), StandardCharsets.UTF_8));
+        json.write(out,4, 0);
+        out.flush();
     }
 }
