@@ -21,9 +21,14 @@ import eu.fasten.analyzer.javacgopal.data.CallGraphConstructor;
 import eu.fasten.analyzer.javacgopal.data.PartialCallGraph;
 import eu.fasten.analyzer.javacgopal.data.exceptions.OPALException;
 import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
+import eu.fasten.core.data.JSONUtils;
 import eu.fasten.core.data.JavaScope;
 import eu.fasten.core.merge.LocalMerger;
-import eu.fasten.maven.analyzer.*;
+import eu.fasten.maven.analyzer.MavenRiskContext;
+import eu.fasten.maven.analyzer.RiskAnalyzer;
+import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
+import eu.fasten.maven.analyzer.RiskContext;
+import eu.fasten.maven.analyzer.RiskReport;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -49,11 +54,23 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
-import java.io.*;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStreamWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Build a call graph of the module and its dependencies.
@@ -81,10 +98,10 @@ public class CheckMojo extends AbstractMojo
     @Parameter
     private List<RiskAnalyzerConfiguration> configurations;
 
-    @Parameter(defaultValue = "https://api.fasten-project.eu/api")
+    @Parameter(defaultValue = "https://api.fasten-project.eu/api", property = "fastenApiUrl")
     private String fastenApiUrl;
 
-    @Parameter(defaultValue = "https://api.fasten-project.eu/mvn")
+    @Parameter(defaultValue = "https://api.fasten-project.eu/mvn", property = "fastenRcgUrl")
     private String fastenRcgUrl;
 
     private List<RiskAnalyzer> analyzers;
@@ -329,7 +346,7 @@ public class CheckMojo extends AbstractMojo
         ExtendedRevisionJavaCallGraph mergedCG = merger.mergeWithCHA(cg);
 
         try {
-            writeJSON(mergedCG.toJSON(), mergeCallGraphFile);
+            writeRcgJsonString(mergedCG, mergeCallGraphFile);
         } catch (Exception e) {
             throw new MojoExecutionException("Failed to serialize the merged call graph", e);
         }
@@ -434,7 +451,7 @@ public class CheckMojo extends AbstractMojo
         outputFile.getParentFile().mkdirs();
 
         try {
-            writeJSON(cg.toJSON(), outputFile);
+            writeRcgJsonString(cg, outputFile);
         } catch (Exception e) {
             getLog().warn("Failed to serialize the call graph for artifact [" + artifact + "]: "
                 + ExceptionUtils.getRootCauseMessage(e));
@@ -443,9 +460,9 @@ public class CheckMojo extends AbstractMojo
         return cg;
     }
 
-    private void writeJSON(JSONObject json, File outputFile) throws IOException {
+    private void writeRcgJsonString(ExtendedRevisionJavaCallGraph rcg, File outputFile) throws IOException {
         var out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outputFile), StandardCharsets.UTF_8));
-        json.write(out,4, 0);
+        out.write(JSONUtils.toJSONString(rcg));
         out.flush();
     }
 }
