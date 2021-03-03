@@ -19,22 +19,8 @@
  */
 package eu.fasten.maven;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.jar.Attributes;
-import java.util.jar.JarOutputStream;
-import java.util.jar.Manifest;
-import java.util.stream.Collectors;
-import java.util.zip.ZipEntry;
-
+import eu.fasten.core.data.JavaScope;
+import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
 import org.apache.commons.collections4.SetUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.reflect.FieldUtils;
@@ -55,6 +41,7 @@ import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -120,6 +107,31 @@ class CheckMojoTest
         artifact.setFile(file);
 
         return artifact;
+    }
+
+    @Test
+    void testStitchingDuplicateArc() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException {
+        this.projectWorkDir = new File(this.testWorkDir, "APP/");
+        this.projectWorkDirTarget = new File(this.projectWorkDir, "target/");
+        this.projectWorkDirTargetClasses = new File(this.projectWorkDirTarget, "classes/");
+
+        FileUtils.copyDirectory(new File("target/test-classes/eu/fasten/maven/app/"),
+                new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/app/"));
+
+        FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
+        FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
+
+        Build build = new Build();
+        build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
+        this.project.setBuild(build);
+
+        Set<Artifact> artifacts = new LinkedHashSet<>();
+        artifacts.add(artifact("org.hamcrest", "hamcrest", "2.2", new File("hamcrest-2.2.jar")));
+        artifacts.add(artifact("org.hamcrest", "hamcrest-core", "1.3", new File("hamcrest-core-1.3.jar")));
+        this.project.setArtifacts(artifacts);
+        assertThrows(java.lang.IllegalArgumentException.class, ()-> {
+            this.mojo.execute();
+        });
     }
 
     @Test
