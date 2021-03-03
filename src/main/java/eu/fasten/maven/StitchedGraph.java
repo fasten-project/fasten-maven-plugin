@@ -17,20 +17,11 @@
  */
 package eu.fasten.maven;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import eu.fasten.core.data.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import eu.fasten.core.data.ArrayImmutableDirectedGraph;
-import eu.fasten.core.data.DirectedGraph;
-import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
-import eu.fasten.core.data.FastenURI;
-import eu.fasten.core.data.JavaNode;
-import eu.fasten.core.data.JavaScope;
-import eu.fasten.core.data.JavaType;
+import java.util.*;
 
 /**
  * Create and navigate a stitched call graph.
@@ -39,6 +30,8 @@ import eu.fasten.core.data.JavaType;
  */
 public class StitchedGraph
 {
+    private static final Logger logger = LoggerFactory.getLogger(StitchedGraph.class);
+
     private final MavenResolvedCallGraph projectRCG;
 
     private final List<MavenResolvedCallGraph> dependenciesRCGs;
@@ -184,6 +177,8 @@ public class StitchedGraph
 
         // Arcs
         for (final List<Integer> l : rcg.getGraph().getGraph().getInternalCalls().keySet()) {
+            logger.info("[{}] Adding internal call ({} -> {}) as arc ({} -> {})",
+                    rcg.getGraph().product,l.get(0), l.get(1) ,toGraphId(offset, l.get(0)),toGraphId(offset, l.get(1)));
             builder.addArc(toGraphId(offset, l.get(0)), toGraphId(offset, l.get(1)));
         }
         for (final List<Integer> l : rcg.getGraph().getGraph().getExternalCalls().keySet()) {

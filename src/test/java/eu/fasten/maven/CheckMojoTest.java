@@ -124,6 +124,9 @@ class CheckMojoTest
         FileUtils.copyDirectory(new File("target/test-classes/eu/fasten/maven/app/"),
                 new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/app/"));
 
+        FileUtils.copyDirectory(new File("src/test/libs"),
+                new File(this.testWorkDir, "libs"));
+
         FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
         FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
 
@@ -132,12 +135,12 @@ class CheckMojoTest
         this.project.setBuild(build);
 
         Set<Artifact> artifacts = new LinkedHashSet<>();
-        artifacts.add(artifact("org.hamcrest", "hamcrest", "2.2", new File("hamcrest-2.2.jar")));
-        artifacts.add(artifact("org.hamcrest", "hamcrest-core", "1.3", new File("hamcrest-core-1.3.jar")));
+        artifacts.add(artifact("org.hamcrest", "hamcrest", "2.2", new File(this.testWorkDir, "libs/hamcrest-2.2.jar")));
+        artifacts.add(artifact("org.hamcrest", "hamcrest-core", "1.3", new File(this.testWorkDir,"libs/hamcrest-core-1.3.jar")));
         this.project.setArtifacts(artifacts);
-        assertThrows(java.lang.IllegalArgumentException.class, ()-> {
+//        assertThrows(java.lang.IllegalArgumentException.class, ()-> {
             this.mojo.execute();
-        });
+//        });
     }
 
     @Test
@@ -157,6 +160,8 @@ class CheckMojoTest
 
         FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
         FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
+        FieldUtils.writeField(this.mojo, "fastenApiUrl", "https://api.fasten-project.eu/api", true);
+        FieldUtils.writeField(this.mojo, "fastenRcgUrl", "https://api.fasten-project.eu/mvn", true);
 
         Build build = new Build();
         build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
