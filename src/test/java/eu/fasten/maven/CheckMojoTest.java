@@ -191,6 +191,8 @@ class CheckMojoTest
 
         FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
         FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
+        FieldUtils.writeField(this.mojo, "fastenApiUrl", "https://api.fasten-project.eu/api", true);
+        FieldUtils.writeField(this.mojo, "fastenRcgUrl", "https://api.fasten-project.eu/mvn", true);
 
         Build build = new Build();
         build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
@@ -230,6 +232,8 @@ class CheckMojoTest
 
         FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
         FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
+        FieldUtils.writeField(this.mojo, "fastenApiUrl", "https://api.fasten-project.eu/api", true);
+        FieldUtils.writeField(this.mojo, "fastenRcgUrl", "https://api.fasten-project.eu/mvn", true);
 
         Build build = new Build();
         build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());

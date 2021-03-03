@@ -17,21 +17,18 @@
  */
 package eu.fasten.maven;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.lang.reflect.InvocationTargetException;
-import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
+import eu.fasten.analyzer.javacgopal.data.CallGraphConstructor;
+import eu.fasten.analyzer.javacgopal.data.PartialCallGraph;
+import eu.fasten.analyzer.javacgopal.data.exceptions.OPALException;
+import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
+import eu.fasten.core.data.JSONUtils;
+import eu.fasten.core.data.JavaScope;
+import eu.fasten.core.merge.LocalMerger;
+import eu.fasten.maven.analyzer.MavenRiskContext;
+import eu.fasten.maven.analyzer.RiskAnalyzer;
+import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
+import eu.fasten.maven.analyzer.RiskContext;
+import eu.fasten.maven.analyzer.RiskReport;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -57,17 +54,23 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
-import eu.fasten.analyzer.javacgopal.data.CallGraphConstructor;
-import eu.fasten.analyzer.javacgopal.data.PartialCallGraph;
-import eu.fasten.analyzer.javacgopal.data.exceptions.OPALException;
-import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
-import eu.fasten.core.data.JavaScope;
-import eu.fasten.core.merge.LocalMerger;
-import eu.fasten.maven.analyzer.MavenRiskContext;
-import eu.fasten.maven.analyzer.RiskAnalyzer;
-import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
-import eu.fasten.maven.analyzer.RiskContext;
-import eu.fasten.maven.analyzer.RiskReport;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStreamWriter;
+import java.lang.reflect.InvocationTargetException;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Build a call graph of the module and its dependencies.
@@ -94,6 +97,12 @@ public class CheckMojo extends AbstractMojo
 
     @Parameter
     private List<RiskAnalyzerConfiguration> configurations;
+
+    @Parameter(defaultValue = "https://api.fasten-project.eu/api", property = "fastenApiUrl")
+    private String fastenApiUrl;
+
+    @Parameter(defaultValue = "https://api.fasten-project.eu/mvn", property = "fastenRcgUrl")
+    private String fastenRcgUrl;
 
     private List<RiskAnalyzer> analyzers;
 
@@ -279,7 +288,7 @@ public class CheckMojo extends AbstractMojo
         }
 
         List<StitchedGraphNode> nodes = this.graph.getStichedNodes();
-
+        getLog().info("Enriching stitched call graph with " + nodes.size() + " nodes.");
         Map<String, StitchedGraphNode> map = new HashMap<>();
         JSONArray json = new JSONArray();
         for (StitchedGraphNode node : nodes) {
@@ -289,14 +298,16 @@ public class CheckMojo extends AbstractMojo
                 map.put(fullURI, node);
             }
         }
+        getLog().info("Requesting meta data for " + map.keySet().size() + " nodes.");
 
         if (!map.isEmpty()) {
             // Get the list of metadata to retrieve
-            HttpPost httpPost = createMetadataCollableRequest(json);
+            HttpPost httpPost = createMetadataCallableRequest(json);
             try (CloseableHttpResponse response = this.httpclient.execute(httpPost)) {
                 if (response.getCode() == 200) {
                     JSONObject responseData = new JSONObject(new JSONTokener(response.getEntity().getContent()));
 
+                    getLog().info("Received meta data for " + responseData.keySet().size() + " nodes.");
                     for (String uri : responseData.keySet()) {
                         StitchedGraphNode node = map.get(uri);
 
@@ -311,12 +322,12 @@ public class CheckMojo extends AbstractMojo
         }
     }
 
-    private HttpPost createMetadataCollableRequest(JSONArray json) throws URISyntaxException, MojoExecutionException
+    private HttpPost createMetadataCallableRequest(JSONArray json) throws URISyntaxException, MojoExecutionException
     {
-        URIBuilder builder = new URIBuilder("https://api.fasten-project.eu/api/metadata/callables");
+        URIBuilder builder = new URIBuilder(this.fastenApiUrl + "/metadata/callables");
         Set<String> metadataNames = new HashSet<>();
-        for (RiskAnalyzer anlyzers : getAnalyzers()) {
-            metadataNames.addAll(anlyzers.getMetadatas());
+        for (RiskAnalyzer analyzers : getAnalyzers()) {
+            metadataNames.addAll(analyzers.getMetadatas());
         }
         metadataNames.forEach(e -> builder.addParameter("attributes", e));
 
@@ -335,7 +346,7 @@ public class CheckMojo extends AbstractMojo
         ExtendedRevisionJavaCallGraph mergedCG = merger.mergeWithCHA(cg);
 
         try {
-            FileUtils.write(mergeCallGraphFile, mergedCG.toJSON().toString(4), StandardCharsets.UTF_8);
+            writeRcgJsonString(mergedCG, mergeCallGraphFile);
         } catch (Exception e) {
             throw new MojoExecutionException("Failed to serialize the merged call graph", e);
         }
@@ -379,9 +390,8 @@ public class CheckMojo extends AbstractMojo
             // Offline mode
             return null;
         }
-
-        StringBuilder builder = new StringBuilder("https://api.fasten-project.eu/mvn/");
-
+        StringBuilder builder = new StringBuilder(this.fastenRcgUrl);
+        builder.append('/');
         builder.append(artifact.getArtifactId().charAt(0));
         builder.append('/');
         builder.append(artifact.getArtifactId());
@@ -441,12 +451,18 @@ public class CheckMojo extends AbstractMojo
         outputFile.getParentFile().mkdirs();
 
         try {
-            FileUtils.write(outputFile, cg.toJSON().toString(4), StandardCharsets.UTF_8);
+            writeRcgJsonString(cg, outputFile);
         } catch (Exception e) {
             getLog().warn("Failed to serialize the call graph for artifact [" + artifact + "]: "
                 + ExceptionUtils.getRootCauseMessage(e));
         }
 
         return cg;
+    }
+
+    private void writeRcgJsonString(ExtendedRevisionJavaCallGraph rcg, File outputFile) throws IOException {
+        var out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outputFile), StandardCharsets.UTF_8));
+        out.write(JSONUtils.toJSONString(rcg));
+        out.flush();
     }
 }
