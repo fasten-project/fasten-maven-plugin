@@ -271,7 +271,7 @@ public class CheckMojo extends AbstractMojo
         }
 
         List<StitchedGraphNode> nodes = this.graph.getStichedNodes();
-
+        getLog().info("Enriching stitched call graph with " + nodes.size() + " nodes.");
         Map<String, StitchedGraphNode> map = new HashMap<>();
         JSONArray json = new JSONArray();
         for (StitchedGraphNode node : nodes) {
@@ -281,6 +281,7 @@ public class CheckMojo extends AbstractMojo
                 map.put(fullURI, node);
             }
         }
+        getLog().info("Requesting meta data for " + map.keySet().size() + " nodes.");
 
         if (!map.isEmpty()) {
             // Get the list of metadata to retrieve
@@ -289,6 +290,7 @@ public class CheckMojo extends AbstractMojo
                 if (response.getCode() == 200) {
                     JSONObject responseData = new JSONObject(new JSONTokener(response.getEntity().getContent()));
 
+                    getLog().info("Received meta data for " + responseData.keySet().size() + " nodes.");
                     for (String uri : responseData.keySet()) {
                         StitchedGraphNode node = map.get(uri);
 
