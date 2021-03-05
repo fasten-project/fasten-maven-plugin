@@ -1,6 +1,7 @@
 package eu.fasten.maven.a;
 
 import eu.fasten.maven.b.B;
+import eu.fasten.maven.bc.BC;
 import eu.fasten.maven.missing.Missing;
 
 public class A
@@ -9,6 +10,7 @@ public class A
     {
         B.mB1();
         m2();
+        BC.mBC();
     }
 
     public void m2()

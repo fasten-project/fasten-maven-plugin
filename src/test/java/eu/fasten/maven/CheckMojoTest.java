@@ -65,6 +65,14 @@ import static org.mockito.Mockito.when;
  */
 class CheckMojoTest
 {
+    private static final File A_FOLDER = new File("target/test-classes/eu/fasten/maven/a/");
+
+    private static final File B_CLASSFILE = new File("target/test-classes/eu/fasten/maven/b/B.class");
+
+    private static final File C_CLASSFILE = new File("target/test-classes/eu/fasten/maven/c/C.class");
+
+    private static final File BC_CLASSFILE = new File("target/test-classes/eu/fasten/maven/bc/BC.class");
+
     private CheckMojo mojo = new CheckMojo();
 
     private Log log = mock(Log.class);
@@ -101,15 +109,17 @@ class CheckMojoTest
         FieldUtils.writeField(this.mojo, "session", this.session, true);
     }
 
-    private void jar(File classFile, File file) throws FileNotFoundException, IOException
+    private void jar(File file, File... classFiles) throws FileNotFoundException, IOException
     {
         try (FileOutputStream fos = new FileOutputStream(file)) {
             Manifest manifest = new Manifest();
             manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
             try (JarOutputStream stream = new JarOutputStream(fos, manifest)) {
-                ZipEntry entry = new ZipEntry(classFile.getName());
-                stream.putNextEntry(entry);
-                FileUtils.copyFile(classFile, stream);
+                for (File classFile : classFiles) {
+                    ZipEntry entry = new ZipEntry(classFile.getName());
+                    stream.putNextEntry(entry);
+                    FileUtils.copyFile(classFile, stream);
+                }
             }
         }
     }
@@ -131,11 +141,10 @@ class CheckMojoTest
         File dependencyBDir = new File(this.testWorkDir, "B.jar");
         File dependencyCDir = new File(this.testWorkDir, "C.jar");
 
-        FileUtils.copyDirectory(new File("target/test-classes/eu/fasten/maven/a/"),
-            new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/a/"));
+        FileUtils.copyDirectory(A_FOLDER, new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/a/"));
 
-        jar(new File("target/test-classes/eu/fasten/maven/b/B.class"), dependencyBDir);
-        jar(new File("target/test-classes/eu/fasten/maven/c/C.class"), dependencyCDir);
+        jar(dependencyBDir, B_CLASSFILE, BC_CLASSFILE);
+        jar(dependencyCDir, C_CLASSFILE, BC_CLASSFILE);
 
         FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
         FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
@@ -154,27 +163,29 @@ class CheckMojoTest
         List<StitchedGraphNode> nodes = this.mojo.graph.getStichedNodes();
 
         // All stitched nodes
-        assertEquals(
-            SetUtils.hashSet(
-                "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.%3Cinit%3E()%2Fjava.lang%2FVoidType",
-                "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m1()%2Fjava.lang%2FVoidType",
-                "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m2()%2Fjava.lang%2FVoidType",
-                "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mB1()%2Fjava.lang%2FVoidType",
-                "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mBi()%2Fjava.lang%2FVoidType",
-                "fasten://mvn!c:c$1.0/eu.fasten.maven.c/C.mC1()%2Fjava.lang%2FVoidType",
-                "/eu.fasten.maven.missing/Missing.mMissing()%2Fjava.lang%2FVoidType",
-                "/java.lang/Object.%3Cinit%3E()VoidType"),
+        assertEquals(SetUtils.hashSet(
+            "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.%3Cinit%3E()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m1()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m2()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mB1()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mBi()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!b:b$1.0/eu.fasten.maven.bc/BC.mBC()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!c:c$1.0/eu.fasten.maven.c/C.mC1()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!c:c$1.0/eu.fasten.maven.bc/BC.mBC()%2Fjava.lang%2FVoidType",
+            "/eu.fasten.maven.missing/Missing.mMissing()%2Fjava.lang%2FVoidType",
+            "/java.lang/Object.%3Cinit%3E()VoidType"),
             nodes.stream().map(node -> node.getFullURI()).collect(Collectors.toSet()));
 
         // Resolved node URIs
-        assertEquals(
-            SetUtils.hashSet(
-                "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.%3Cinit%3E()%2Fjava.lang%2FVoidType",
-                "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m1()%2Fjava.lang%2FVoidType",
-                "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m2()%2Fjava.lang%2FVoidType",
-                "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mB1()%2Fjava.lang%2FVoidType",
-                "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mBi()%2Fjava.lang%2FVoidType",
-                "fasten://mvn!c:c$1.0/eu.fasten.maven.c/C.mC1()%2Fjava.lang%2FVoidType"),
+        assertEquals(SetUtils.hashSet(
+            "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.%3Cinit%3E()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m1()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m2()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mB1()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!b:b$1.0/eu.fasten.maven.b/B.mBi()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!b:b$1.0/eu.fasten.maven.bc/BC.mBC()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!c:c$1.0/eu.fasten.maven.c/C.mC1()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!c:c$1.0/eu.fasten.maven.bc/BC.mBC()%2Fjava.lang%2FVoidType"),
             nodes.stream().filter(node -> node.getScope() != JavaScope.externalTypes).map(node -> node.getFullURI())
                 .collect(Collectors.toSet()));
     }
@@ -210,7 +221,8 @@ class CheckMojoTest
         assertEquals(SetUtils.hashSet(
             "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.project/ProjectClass.%3Cinit%3E()%2Fjava.lang%2FVoidType",
             "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.project/ProjectClass.m()%2Fjava.lang%2FVoidType",
-            "fasten://mvn!org.ow2.asm:asm$7.0/org.objectweb.asm/Label.%3Cinit%3E()%2Fjava.lang%2FVoidType"),
+            "fasten://mvn!org.ow2.asm:asm$7.0/org.objectweb.asm/Label.%3Cinit%3E()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!org.ow2.asm:asm$7.0/org.objectweb.asm/Label.%3Cclinit%3E()%2Fjava.lang%2FVoidType"),
             nodes.stream().filter(node -> node.getScope() != JavaScope.externalTypes).map(node -> node.getFullURI())
                 .collect(Collectors.toSet()));
     }
@@ -224,11 +236,10 @@ class CheckMojoTest
         File dependencyBDir = new File(this.testWorkDir, "B.jar");
         File dependencyCDir = new File(this.testWorkDir, "C.jar");
 
-        FileUtils.copyDirectory(new File("target/test-classes/eu/fasten/maven/a/"),
-            new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/a/"));
+        FileUtils.copyDirectory(A_FOLDER, new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/a/"));
 
-        jar(new File("target/test-classes/eu/fasten/maven/b/B.class"), dependencyBDir);
-        jar(new File("target/test-classes/eu/fasten/maven/c/C.class"), dependencyCDir);
+        jar(dependencyBDir, B_CLASSFILE, BC_CLASSFILE);
+        jar(dependencyCDir, C_CLASSFILE, BC_CLASSFILE);
 
         FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
         FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);

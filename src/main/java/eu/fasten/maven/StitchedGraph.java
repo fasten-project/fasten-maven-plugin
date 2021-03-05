@@ -47,11 +47,13 @@ public class StitchedGraph
 
     private final DirectedGraph stichedGraph;
 
-    private Map<Long, StitchedGraphNode> idToNode = new HashMap<>();
+    private Map<Long, StitchedGraphNode> graphIdToNode = new HashMap<>();
 
     private Map<Long, Long> globalIdToGraphId = new HashMap<>();
 
-    private Map<FastenURI, Long> localURIToGlobalId = new HashMap<>();
+    private Map<FastenURI, Set<Long>> localURIToGlobalId = new HashMap<>();
+
+    private Map<String, Map<FastenURI, Long>> resolvedURIToGraphId = new HashMap<>();
 
     public StitchedGraph(MavenResolvedCallGraph projectRCG, List<MavenResolvedCallGraph> dependencyRCGs)
     {
@@ -61,6 +63,8 @@ public class StitchedGraph
         // Build full graph
 
         ArrayImmutableDirectedGraph.Builder fullBuilder = new ArrayImmutableDirectedGraph.Builder();
+
+        // Add internal calls
 
         long offset = append(fullBuilder, projectRCG, -1);
 
@@ -135,7 +139,7 @@ public class StitchedGraph
         List<StitchedGraphNode> nodes = new ArrayList<>();
 
         for (Long node : this.stichedGraph.nodes()) {
-            nodes.add(this.idToNode.get(node));
+            nodes.add(this.graphIdToNode.get(node));
         }
 
         return nodes;
@@ -146,7 +150,7 @@ public class StitchedGraph
         List<StitchedGraphNode> nodes = new ArrayList<>();
 
         for (Long nodeId : this.stichedGraph.nodes()) {
-            StitchedGraphNode node = this.idToNode.get(nodeId);
+            StitchedGraphNode node = this.graphIdToNode.get(nodeId);
 
             if (node.getScope() == scope) {
                 nodes.add(node);
@@ -162,7 +166,7 @@ public class StitchedGraph
      */
     public StitchedGraphNode getNode(long globalId)
     {
-        return this.idToNode.get(globalId);
+        return this.graphIdToNode.get(globalId);
     }
 
     /**
@@ -177,55 +181,95 @@ public class StitchedGraph
     {
         long biggest = offset;
 
-        // Nodes
-        biggest = Math.max(biggest, addMethods(JavaScope.internalTypes, rcg, offset, false, builder));
-        biggest = Math.max(biggest, addMethods(JavaScope.resolvedTypes, rcg, offset, false, builder));
-        biggest = Math.max(biggest, addMethods(JavaScope.externalTypes, rcg, offset, true, builder));
+        // Add internal nodes
+        biggest = Math.max(biggest, addMethods(JavaScope.internalTypes, rcg, offset, builder));
+        biggest = Math.max(biggest, addMethods(JavaScope.resolvedTypes, rcg, offset, builder));
+        biggest = Math.max(biggest, addMethods(JavaScope.externalTypes, rcg, offset, builder));
 
         // Arcs
         for (final List<Integer> l : rcg.getGraph().getGraph().getInternalCalls().keySet()) {
             builder.addArc(toGraphId(offset, l.get(0)), toGraphId(offset, l.get(1)));
         }
-        for (final List<Integer> l : rcg.getGraph().getGraph().getExternalCalls().keySet()) {
+        for (final List<Integer> l : rcg.getGraph().getGraph().getResolvedCalls().keySet()) {
+            // FIXME: Workaround a bug in fasten-core which sometimes duplicate the local calls as resolved
+            // calls
+            Long graphIdRight = toGraphId(offset, l.get(1));
+            if (graphIdRight == null) {
+                continue;
+            }
+
             builder.addArc(toGraphId(offset, l.get(0)), toGraphId(offset, l.get(1)));
+        }
+        for (final List<Integer> l : rcg.getGraph().getGraph().getExternalCalls().keySet()) {
+            // Skip external calls which are duplicated in the resolved calls
+            Long graphIdRight = toGraphId(offset, l.get(1));
+            if (graphIdRight == null) {
+                continue;
+            }
+
+            builder.addArc(toGraphId(offset, l.get(0)), graphIdRight);
         }
 
         return biggest;
     }
 
-    private long addMethods(JavaScope scope, MavenResolvedCallGraph rcg, long offset, boolean external,
+    private long addMethods(JavaScope scope, MavenResolvedCallGraph rcg, long offset,
         ArrayImmutableDirectedGraph.Builder builder)
     {
         Map<FastenURI, JavaType> types = rcg.getGraph().getClassHierarchy().get(scope);
 
         long biggest = offset;
 
-        for (var aClass : types.entrySet()) {
+        for (Map.Entry<FastenURI, JavaType> aClass : types.entrySet()) {
             for (Map.Entry<Integer, JavaNode> methodEntry : aClass.getValue().getMethods().entrySet()) {
                 // Calculate global version of the node id
                 long globalId = toGlobalId(offset, methodEntry.getKey());
 
-                // Search if the already been hit
-                Long graphId = this.localURIToGlobalId.get(methodEntry.getValue().getUri());
-                if (graphId == null) {
-                    // Create a new node and insert it in the graph
-                    addNode(globalId, scope, methodEntry.getValue(), rcg, external, builder);
+                // Increment next id offset
+                biggest = Math.max(biggest, globalId);
 
-                    // Increment next id offset
-                    biggest = Math.max(biggest, globalId);
+                long graphId;
 
+                if (scope == JavaScope.internalTypes) {
+                    // Check if there is a resolved node matching this internal node
+                    graphId = getGraphId(rcg.getGraph().product, globalId, methodEntry.getValue());
+
+                    // Always add internal nodes (they are the reference)
+                    addNode(graphId, scope, methodEntry.getValue(), rcg, false, builder);
+                } else {
+                    if (scope == JavaScope.externalTypes) {
+                        // Check if there is a resolved node matching this external node signature
+                        if (!this.localURIToGlobalId.containsKey(methodEntry.getValue().getUri())) {
+                            graphId = globalId;
+
+                            // Always add external nodes
+                            addNode(graphId, scope, methodEntry.getValue(), rcg, true, builder);
+                        } else {
+                            // Forget external nodes which have been resolved
+                            graphId = -1;
+                        }
+                    } else {
+                        // FIXME: Warkaround a bug in fasten-core which sometimes duplicate the local calls as resolved
+                        // calls
+                        if (aClass.getKey().getProduct().equals(rcg.getGraph().product)) {
+                            // Forget bad nodes
+                            graphId = -1;
+                        } else {
+                            // Check if there is an internal node matching this resolved node
+                            graphId = getGraphId(aClass.getKey().getProduct(), globalId, methodEntry.getValue());
+
+                            // Add resolved node only if the internal node is not already there
+                            if (graphId == globalId) {
+                                addNode(graphId, scope, methodEntry.getValue(), rcg, false, builder);
+                            }
+                        }
+                    }
+                }
+
+                if (graphId != -1) {
                     // Remember the mapping between a global id and its reference graph id (the id registered in the
                     // graph)
-                    this.globalIdToGraphId.put(globalId, globalId);
-                } else {
-                    if (scope == JavaScope.internalTypes) {
-                        // Replace the resolved node with its local version
-                        this.idToNode.put(graphId, new StitchedGraphNode(graphId, scope, methodEntry.getValue(), rcg));
-
-                        this.globalIdToGraphId.put(globalId, graphId);
-                    } else {
-                        this.globalIdToGraphId.put(globalId, graphId);
-                    }
+                    this.globalIdToGraphId.put(globalId, graphId);
                 }
             }
         }
@@ -233,17 +277,27 @@ public class StitchedGraph
         return biggest;
     }
 
-    private void addNode(long globalId, JavaScope scope, JavaNode node, MavenResolvedCallGraph rcg, boolean external,
+    private long getGraphId(String productId, long globalId, JavaNode node)
+    {
+        Map<FastenURI, Long> product = this.resolvedURIToGraphId.computeIfAbsent(productId, k -> new HashMap<>());
+
+        return product.computeIfAbsent(node.getUri(), k -> globalId);
+    }
+
+    private void addNode(long graphId, JavaScope scope, JavaNode node, MavenResolvedCallGraph rcg, boolean external,
         ArrayImmutableDirectedGraph.Builder builder)
     {
-        if (external) {
-            builder.addExternalNode(globalId);
-        } else {
-            builder.addInternalNode(globalId);
+        if (!this.graphIdToNode.containsKey(graphId)) {
+            if (external) {
+                builder.addExternalNode(graphId);
+            } else {
+                builder.addInternalNode(graphId);
+            }
+
+            this.localURIToGlobalId.computeIfAbsent(node.getUri(), k -> new HashSet<Long>()).add(graphId);
         }
 
-        this.idToNode.put(globalId, new StitchedGraphNode(globalId, scope, node, rcg));
-        this.localURIToGlobalId.put(node.getUri(), globalId);
+        this.graphIdToNode.put(graphId, new StitchedGraphNode(graphId, scope, node, rcg));
     }
 
     private long toGlobalId(long offset, int localId)
@@ -251,7 +305,7 @@ public class StitchedGraph
         return offset + localId + 1;
     }
 
-    private long toGraphId(long offset, int localId)
+    private Long toGraphId(long offset, int localId)
     {
         return this.globalIdToGraphId.get(toGlobalId(offset, localId));
     }

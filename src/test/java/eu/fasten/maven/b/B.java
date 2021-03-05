@@ -1,4 +1,5 @@
 package eu.fasten.maven.b;
+
 import eu.fasten.maven.c.C;
 
 public class B
