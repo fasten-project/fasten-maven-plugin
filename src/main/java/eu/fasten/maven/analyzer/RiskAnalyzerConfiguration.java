@@ -18,8 +18,8 @@
 package eu.fasten.maven.analyzer;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -28,13 +28,15 @@ import java.util.stream.Collectors;
  * 
  * @version $Id$
  */
-public class RiskAnalyzerConfiguration extends HashMap<String, Object>
+public class RiskAnalyzerConfiguration
 {
     private String type;
 
     private Boolean failOnRisk;
 
     private List<Pattern> ignoredCallables = Collections.emptyList();
+
+    private RiskAnalyzerProperties properties;
 
     /**
      * @return the identifier of the risk analyzer
@@ -82,5 +84,21 @@ public class RiskAnalyzerConfiguration extends HashMap<String, Object>
     public void setIgnoredCallables(List<String> ignoredCallables)
     {
         this.ignoredCallables = ignoredCallables.stream().map(Pattern::compile).collect(Collectors.toList());
+    }
+
+    /**
+     * @return the custom properties specific to the type
+     */
+    public RiskAnalyzerProperties getProperties()
+    {
+        return this.properties;
+    }
+
+    /**
+     * @param properties the custom properties specific to the type
+     */
+    public void setProperties(RiskAnalyzerProperties properties)
+    {
+        this.properties = properties;
     }
 }
