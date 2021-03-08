@@ -287,7 +287,7 @@ public class CheckMojo extends AbstractMojo
             return;
         }
 
-        List<StitchedGraphNode> nodes = this.graph.getStichedNodes();
+        List<StitchedGraphNode> nodes = this.graph.getStitchedNodes();
         getLog().info("Enriching stitched call graph with " + nodes.size() + " nodes.");
         Map<String, StitchedGraphNode> map = new HashMap<>();
         JSONArray json = new JSONArray();

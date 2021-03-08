@@ -40,7 +40,7 @@ public class BinaryRiskAnalyzer extends AbstractRiskAnalyzer
     {
         RiskReport report = new RiskReport(this);
 
-        for (StitchedGraphNode node : context.getGraph().getStichedNodes(JavaScope.externalTypes)) {
+        for (StitchedGraphNode node : context.getGraph().getStitchedNodes(JavaScope.externalTypes)) {
             FastenURI uri = node.getLocalNode().getUri();
             String signature = uri.getRawNamespace() + "." + uri.getRawEntity();
 
