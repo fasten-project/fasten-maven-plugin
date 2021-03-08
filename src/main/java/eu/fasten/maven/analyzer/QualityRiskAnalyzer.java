@@ -12,8 +12,10 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 public class QualityRiskAnalyzer extends AbstractRiskAnalyzer {
@@ -28,6 +30,14 @@ public class QualityRiskAnalyzer extends AbstractRiskAnalyzer {
             System.err.println("Failed to export the stitched graph: " + e);
         }
         return null;
+    }
+
+    @Override
+    public Set<String> getMetadatas()
+    {
+        var metadataAttributes = new HashSet<String>();
+        metadataAttributes.add("quality");
+        return metadataAttributes;
     }
 
     private void exportGraph(StitchedGraph graph) throws java.io.IOException {
