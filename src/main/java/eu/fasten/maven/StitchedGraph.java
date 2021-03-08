@@ -51,7 +51,7 @@ public class StitchedGraph
 
     private final DirectedGraph fullGraph;
 
-    private final DirectedGraph stichedGraph;
+    private final DirectedGraph stitchedGraph;
 
     private Map<Long, StitchedGraphNode> graphIdToNode = new HashMap<>();
 
@@ -82,7 +82,7 @@ public class StitchedGraph
 
         // Build stitched graph
 
-        ArrayImmutableDirectedGraph.Builder stichedBuilder = new ArrayImmutableDirectedGraph.Builder();
+        ArrayImmutableDirectedGraph.Builder stitchedBuilder = new ArrayImmutableDirectedGraph.Builder();
 
         Set<Long> handledNodes = new HashSet<>();
 
@@ -94,13 +94,13 @@ public class StitchedGraph
             projectRCG.getGraph().getGraph().getExternalCalls().keySet().stream()
                 .map(l -> this.globalIdToGraphId.get(l.get(0).longValue())).iterator());
 
-        appendNodeAndSuccessors(new IteratorIterable<>(projectCalls), stichedBuilder, externalCalls, handledNodes);
+        appendNodeAndSuccessors(new IteratorIterable<>(projectCalls), stitchedBuilder, externalCalls, handledNodes);
 
-        this.stichedGraph = stichedBuilder.build();
+        this.stitchedGraph = stitchedBuilder.build();
     }
 
     private void appendNodeAndSuccessors(Iterable<Long> startVertices,
-        ArrayImmutableDirectedGraph.Builder stichedBuilder, LongSet externalCalls, Set<Long> addedNodes)
+        ArrayImmutableDirectedGraph.Builder stitchedBuilder, LongSet externalCalls, Set<Long> addedNodes)
     {
         DepthFirstIterator<Long, LongLongPair> iterator = new DepthFirstIterator<>(this.fullGraph, startVertices);
 
@@ -108,27 +108,27 @@ public class StitchedGraph
             long edge = iterator.next();
 
             if (!addedNodes.contains(edge)) {
-                addNode(edge, stichedBuilder, externalCalls);
+                addNode(edge, stitchedBuilder, externalCalls);
                 addedNodes.add(edge);
             }
 
             for (Long successor : this.fullGraph.successors(edge)) {
                 if (!addedNodes.contains(successor)) {
-                    addNode(successor, stichedBuilder, externalCalls);
+                    addNode(successor, stitchedBuilder, externalCalls);
                     addedNodes.add(successor);
                 }
 
-                stichedBuilder.addArc(edge, successor);
+                stitchedBuilder.addArc(edge, successor);
             }
         }
     }
 
-    private void addNode(long node, ArrayImmutableDirectedGraph.Builder stichedBuilder, LongSet externalCalls)
+    private void addNode(long node, ArrayImmutableDirectedGraph.Builder stitchedBuilder, LongSet externalCalls)
     {
         if (externalCalls.contains(node)) {
-            stichedBuilder.addExternalNode(node);
+            stitchedBuilder.addExternalNode(node);
         } else {
-            stichedBuilder.addInternalNode(node);
+            stitchedBuilder.addInternalNode(node);
         }
     }
 
@@ -143,30 +143,30 @@ public class StitchedGraph
     /**
      * @return the stitched graph
      */
-    public DirectedGraph getStichedGraph()
+    public DirectedGraph getStitchedGraph()
     {
-        return this.stichedGraph;
+        return this.stitchedGraph;
     }
 
     /**
      * @return the nodes which are part of the stitched graph
      */
-    public List<StitchedGraphNode> getStichedNodes()
+    public List<StitchedGraphNode> getStitchedNodes()
     {
         List<StitchedGraphNode> nodes = new ArrayList<>();
 
-        for (Long node : this.stichedGraph.nodes()) {
+        for (Long node : this.stitchedGraph.nodes()) {
             nodes.add(this.graphIdToNode.get(node));
         }
 
         return nodes;
     }
 
-    public List<StitchedGraphNode> getStichedNodes(JavaScope scope)
+    public List<StitchedGraphNode> getStitchedNodes(JavaScope scope)
     {
         List<StitchedGraphNode> nodes = new ArrayList<>();
 
-        for (Long nodeId : this.stichedGraph.nodes()) {
+        for (Long nodeId : this.stitchedGraph.nodes()) {
             StitchedGraphNode node = this.graphIdToNode.get(nodeId);
 
             if (node.getScope() == scope) {
