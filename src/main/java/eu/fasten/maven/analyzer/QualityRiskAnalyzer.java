@@ -37,14 +37,18 @@ import java.util.function.Function;
 
 public class QualityRiskAnalyzer extends AbstractRiskAnalyzer {
 
+    private File outputFile = new File("project.enriched.jgrapht.json");
+
     @Override
     public RiskReport analyze(RiskContext context) {
+        RiskReport report = new RiskReport(this);
         try {
             exportGraph(context.getGraph());
+            report.warning("Exported stitched graph to " + outputFile.toString());
         } catch (java.io.IOException e) {
-            System.err.println("Failed to export the stitched graph: " + e);
+            report.error("Failed to export the stitched graph: " + e);
         }
-        return null;
+        return report;
     }
 
     @Override
@@ -70,8 +74,7 @@ public class QualityRiskAnalyzer extends AbstractRiskAnalyzer {
         JSONExporter<Long, LongLongPair> exporter = new JSONExporter(v -> String.valueOf(v));
 
         exporter.setVertexAttributeProvider(vertexAttributeProvider);
-        File e_graph = new File("project.enriched.jgrapht.json");
-        var out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(e_graph), StandardCharsets.UTF_8));
+        var out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(this.outputFile), StandardCharsets.UTF_8));
         exporter.exportGraph(graph.getStitchedGraph(), out);
         out.close();
     }
