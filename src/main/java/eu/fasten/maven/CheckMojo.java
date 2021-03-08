@@ -24,8 +24,11 @@ import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
 import eu.fasten.core.data.JSONUtils;
 import eu.fasten.core.data.JavaScope;
 import eu.fasten.core.merge.LocalMerger;
-import eu.fasten.maven.analyzer.*;
-import it.unimi.dsi.fastutil.longs.LongLongPair;
+import eu.fasten.maven.analyzer.MavenRiskContext;
+import eu.fasten.maven.analyzer.RiskAnalyzer;
+import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
+import eu.fasten.maven.analyzer.RiskContext;
+import eu.fasten.maven.analyzer.RiskReport;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -47,19 +50,27 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
-import org.jgrapht.nio.Attribute;
-import org.jgrapht.nio.DefaultAttribute;
-import org.jgrapht.nio.json.JSONExporter;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
-import java.io.*;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStreamWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.function.Function;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Build a call graph of the module and its dependencies.
@@ -177,12 +188,6 @@ public class CheckMojo extends AbstractMojo
             enrich();
         } catch (IOException | URISyntaxException e) {
             getLog().warn("Failed to enrich the stitched graph", e);
-        }
-
-        try {
-            exportGraph();
-        } catch (IOException e) {
-            getLog().warn("Failed to export the stitched graph", e);
         }
 
         // Analyze the stitched call graph
@@ -315,28 +320,6 @@ public class CheckMojo extends AbstractMojo
                 }
             }
         }
-    }
-
-    private void exportGraph() throws IOException{
-        var g = this.graph.getStichedGraph();
-        Function<Long, Map<String, Attribute>> vertexAttributeProvider = v -> {
-            Map<String, Attribute> map = new LinkedHashMap<>();
-            var snode = this.graph.getNode(v);
-            var metadata_map = snode.getLocalNode().getMetadata();
-            var metadata = new JSONObject(metadata_map);
-            map.put("metadata",
-                    DefaultAttribute.createAttribute(metadata.toString()));
-            map.put("uri", DefaultAttribute.createAttribute(snode.getFullURI()));
-            map.put("application_node", DefaultAttribute.createAttribute(Boolean.TRUE));
-            return map;
-        };
-        JSONExporter<Long, LongLongPair> exporter = new JSONExporter(v -> String.valueOf(v));
-
-        exporter.setVertexAttributeProvider(vertexAttributeProvider);
-        File e_graph = new File(outputDirectory, "project.enriched.jgrapht.json");
-        var out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(e_graph), StandardCharsets.UTF_8));
-        exporter.exportGraph(g,out);
-        out.close();
     }
 
     private HttpPost createMetadataCallableRequest(JSONArray json) throws URISyntaxException, MojoExecutionException
