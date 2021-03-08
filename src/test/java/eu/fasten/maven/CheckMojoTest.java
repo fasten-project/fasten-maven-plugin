@@ -160,7 +160,7 @@ class CheckMojoTest
 
         this.mojo.execute();
 
-        List<StitchedGraphNode> nodes = this.mojo.graph.getStichedNodes();
+        List<StitchedGraphNode> nodes = this.mojo.graph.getStitchedNodes();
 
         // All stitched nodes
         assertEquals(SetUtils.hashSet(
@@ -215,7 +215,7 @@ class CheckMojoTest
 
         this.mojo.execute();
 
-        List<StitchedGraphNode> nodes = this.mojo.graph.getStichedNodes();
+        List<StitchedGraphNode> nodes = this.mojo.graph.getStitchedNodes();
 
         // Resolved node URIs
         assertEquals(SetUtils.hashSet(

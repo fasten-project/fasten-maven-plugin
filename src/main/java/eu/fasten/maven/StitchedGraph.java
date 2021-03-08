@@ -24,6 +24,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.collections4.iterators.IteratorChain;
+import org.apache.commons.collections4.iterators.IteratorIterable;
+import org.jgrapht.traverse.DepthFirstIterator;
+
 import eu.fasten.core.data.ArrayImmutableDirectedGraph;
 import eu.fasten.core.data.DirectedGraph;
 import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
@@ -31,6 +35,8 @@ import eu.fasten.core.data.FastenURI;
 import eu.fasten.core.data.JavaNode;
 import eu.fasten.core.data.JavaScope;
 import eu.fasten.core.data.JavaType;
+import it.unimi.dsi.fastutil.longs.LongLongPair;
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 /**
  * Create and navigate a stitched call graph.
@@ -45,7 +51,7 @@ public class StitchedGraph
 
     private final DirectedGraph fullGraph;
 
-    private final DirectedGraph stichedGraph;
+    private final DirectedGraph stitchedGraph;
 
     private Map<Long, StitchedGraphNode> graphIdToNode = new HashMap<>();
 
@@ -76,42 +82,53 @@ public class StitchedGraph
 
         // Build stitched graph
 
-        ArrayImmutableDirectedGraph.Builder stichedBuilder = new ArrayImmutableDirectedGraph.Builder();
+        ArrayImmutableDirectedGraph.Builder stitchedBuilder = new ArrayImmutableDirectedGraph.Builder();
 
         Set<Long> handledNodes = new HashSet<>();
 
-        for (final List<Integer> l : projectRCG.getGraph().getGraph().getInternalCalls().keySet()) {
-            appendNodeAndSuccessors(l.get(0).longValue(), stichedBuilder, handledNodes);
-        }
-        for (final List<Integer> l : projectRCG.getGraph().getGraph().getExternalCalls().keySet()) {
-            appendNodeAndSuccessors(l.get(0).longValue(), stichedBuilder, handledNodes);
-        }
+        LongSet externalCalls = this.fullGraph.externalNodes();
 
-        this.stichedGraph = stichedBuilder.build();
+        IteratorChain<Long> projectCalls = new IteratorChain<>(
+            projectRCG.getGraph().getGraph().getInternalCalls().keySet().stream().map(l -> l.get(0).longValue())
+                .iterator(),
+            projectRCG.getGraph().getGraph().getExternalCalls().keySet().stream()
+                .map(l -> this.globalIdToGraphId.get(l.get(0).longValue())).iterator());
+
+        appendNodeAndSuccessors(new IteratorIterable<>(projectCalls), stitchedBuilder, externalCalls, handledNodes);
+
+        this.stitchedGraph = stitchedBuilder.build();
     }
 
-    private void appendNodeAndSuccessors(long node, ArrayImmutableDirectedGraph.Builder stichedBuilder,
-        Set<Long> handledNodes)
+    private void appendNodeAndSuccessors(Iterable<Long> startVertices,
+        ArrayImmutableDirectedGraph.Builder stitchedBuilder, LongSet externalCalls, Set<Long> addedNodes)
     {
-        if (!handledNodes.contains(node)) {
-            addNode(node, stichedBuilder);
+        DepthFirstIterator<Long, LongLongPair> iterator = new DepthFirstIterator<>(this.fullGraph, startVertices);
 
-            handledNodes.add(node);
+        while (iterator.hasNext()) {
+            long edge = iterator.next();
 
-            for (Long successor : this.fullGraph.successors(node)) {
-                appendNodeAndSuccessors(successor, stichedBuilder, handledNodes);
+            if (!addedNodes.contains(edge)) {
+                addNode(edge, stitchedBuilder, externalCalls);
+                addedNodes.add(edge);
+            }
 
-                stichedBuilder.addArc(node, successor);
+            for (Long successor : this.fullGraph.successors(edge)) {
+                if (!addedNodes.contains(successor)) {
+                    addNode(successor, stitchedBuilder, externalCalls);
+                    addedNodes.add(successor);
+                }
+
+                stitchedBuilder.addArc(edge, successor);
             }
         }
     }
 
-    private void addNode(long node, ArrayImmutableDirectedGraph.Builder stichedBuilder)
+    private void addNode(long node, ArrayImmutableDirectedGraph.Builder stitchedBuilder, LongSet externalCalls)
     {
-        if (this.fullGraph.externalNodes().contains(node)) {
-            stichedBuilder.addExternalNode(node);
+        if (externalCalls.contains(node)) {
+            stitchedBuilder.addExternalNode(node);
         } else {
-            stichedBuilder.addInternalNode(node);
+            stitchedBuilder.addInternalNode(node);
         }
     }
 
@@ -126,30 +143,30 @@ public class StitchedGraph
     /**
      * @return the stitched graph
      */
-    public DirectedGraph getStichedGraph()
+    public DirectedGraph getStitchedGraph()
     {
-        return this.stichedGraph;
+        return this.stitchedGraph;
     }
 
     /**
      * @return the nodes which are part of the stitched graph
      */
-    public List<StitchedGraphNode> getStichedNodes()
+    public List<StitchedGraphNode> getStitchedNodes()
     {
         List<StitchedGraphNode> nodes = new ArrayList<>();
 
-        for (Long node : this.stichedGraph.nodes()) {
+        for (Long node : this.stitchedGraph.nodes()) {
             nodes.add(this.graphIdToNode.get(node));
         }
 
         return nodes;
     }
 
-    public List<StitchedGraphNode> getStichedNodes(JavaScope scope)
+    public List<StitchedGraphNode> getStitchedNodes(JavaScope scope)
     {
         List<StitchedGraphNode> nodes = new ArrayList<>();
 
-        for (Long nodeId : this.stichedGraph.nodes()) {
+        for (Long nodeId : this.stitchedGraph.nodes()) {
             StitchedGraphNode node = this.graphIdToNode.get(nodeId);
 
             if (node.getScope() == scope) {
