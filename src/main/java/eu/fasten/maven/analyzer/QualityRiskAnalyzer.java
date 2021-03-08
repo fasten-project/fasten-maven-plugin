@@ -37,8 +37,6 @@ import java.util.function.Function;
 
 public class QualityRiskAnalyzer extends AbstractRiskAnalyzer {
 
-    private RiskAnalyzerConfiguration configuration;
-
     @Override
     public RiskReport analyze(RiskContext context) {
         try {
