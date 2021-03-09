@@ -18,6 +18,7 @@
 package eu.fasten.maven.analyzer;
 
 import eu.fasten.maven.StitchedGraph;
+import eu.fasten.maven.StitchedGraphNode;
 import it.unimi.dsi.fastutil.longs.LongLongPair;
 import org.jgrapht.nio.Attribute;
 import org.jgrapht.nio.DefaultAttribute;
@@ -38,10 +39,12 @@ import java.util.function.Function;
 public class QualityRiskAnalyzer extends AbstractRiskAnalyzer {
 
     private File outputFile = new File("project.enriched.jgrapht.json");
+    private String product = null;
 
     @Override
     public RiskReport analyze(RiskContext context) {
         RiskReport report = new RiskReport(this);
+        product = context.getGraph().getProjectRCG().getGraph().product;
         try {
             exportGraph(context.getGraph());
             report.warning("Exported stitched graph to " + outputFile.toString());
@@ -68,7 +71,7 @@ public class QualityRiskAnalyzer extends AbstractRiskAnalyzer {
             map.put("metadata",
                     DefaultAttribute.createAttribute(metadata.toString()));
             map.put("uri", DefaultAttribute.createAttribute(snode.getFullURI()));
-            map.put("application_node", DefaultAttribute.createAttribute(Boolean.TRUE));
+            map.put("application_node", DefaultAttribute.createAttribute(isApplicationNode(snode)));
             return map;
         };
         JSONExporter<Long, LongLongPair> exporter = new JSONExporter(v -> String.valueOf(v));
@@ -77,5 +80,9 @@ public class QualityRiskAnalyzer extends AbstractRiskAnalyzer {
         var out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(this.outputFile), StandardCharsets.UTF_8));
         exporter.exportGraph(graph.getStitchedGraph(), out);
         out.close();
+    }
+
+    private boolean isApplicationNode(StitchedGraphNode node){
+        return node.getPackageRCG().getGraph().product == product;
     }
 }

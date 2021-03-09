@@ -19,22 +19,8 @@
  */
 package eu.fasten.maven;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.jar.Attributes;
-import java.util.jar.JarOutputStream;
-import java.util.jar.Manifest;
-import java.util.stream.Collectors;
-import java.util.zip.ZipEntry;
-
+import eu.fasten.core.data.JavaScope;
+import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
 import org.apache.commons.collections4.SetUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.reflect.FieldUtils;
@@ -50,8 +36,16 @@ import org.apache.maven.project.MavenProject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import eu.fasten.core.data.JavaScope;
-import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.*;
+import java.util.jar.Attributes;
+import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
+import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -188,6 +182,36 @@ class CheckMojoTest
             "fasten://mvn!c:c$1.0/eu.fasten.maven.bc/BC.mBC()%2Fjava.lang%2FVoidType"),
             nodes.stream().filter(node -> node.getScope() != JavaScope.externalTypes).map(node -> node.getFullURI())
                 .collect(Collectors.toSet()));
+    }
+
+    @Test
+    void testOutput() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException
+    {
+        this.projectWorkDir = new File(this.testWorkDir, "PROJECT/");
+        this.projectWorkDirTarget = new File(this.projectWorkDir, "target/");
+        this.projectWorkDirTargetClasses = new File(this.projectWorkDirTarget, "classes/");
+
+        FileUtils.copyDirectory(new File("target/test-classes/eu/fasten/maven/project/"),
+                new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/project/"));
+
+        FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
+        FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
+        FieldUtils.writeField(this.mojo, "fastenApiUrl", "https://api.fasten-project.eu/api", true);
+        FieldUtils.writeField(this.mojo, "fastenRcgUrl", "https://api.fasten-project.eu/mvn", true);
+
+        Build build = new Build();
+        build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
+        this.project.setBuild(build);
+
+        Set<Artifact> artifacts = new LinkedHashSet<>();
+        artifacts.add(artifact("org.ow2.asm", "asm", "7.0", new File("asm.jar")));
+        this.project.setArtifacts(artifacts);
+
+        RiskAnalyzerConfiguration configuration = new RiskAnalyzerConfiguration();
+        configuration.setType("fasten.Quality");
+        FieldUtils.writeField(this.mojo, "configurations", Arrays.asList(configuration), true);
+
+        this.mojo.execute();
     }
 
     @Test
