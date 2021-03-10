@@ -64,6 +64,8 @@ import java.io.OutputStreamWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -300,6 +302,9 @@ public class CheckMojo extends AbstractMojo
         }
         getLog().info("Requesting meta data for " + map.keySet().size() + " nodes.");
 
+        //TODO: remove debugging file writing
+        Files.writeString(Path.of("requested_metadata.json"), json.toString(2));
+
         if (!map.isEmpty()) {
             // Get the list of metadata to retrieve
             HttpPost httpPost = createMetadataCallableRequest(json);
@@ -308,6 +313,10 @@ public class CheckMojo extends AbstractMojo
                     JSONObject responseData = new JSONObject(new JSONTokener(response.getEntity().getContent()));
 
                     getLog().info("Received meta data for " + responseData.keySet().size() + " nodes.");
+
+                    //TODO: remove debugging file writing
+                    Files.writeString(Path.of("received_metadata.json"), responseData.toString(2));
+
                     for (String uri : responseData.keySet()) {
                         StitchedGraphNode node = map.get(uri);
 
