@@ -28,6 +28,8 @@ import org.apache.commons.collections4.iterators.IteratorChain;
 import org.apache.commons.collections4.iterators.IteratorIterable;
 import org.jgrapht.traverse.DepthFirstIterator;
 
+import com.google.common.collect.BiMap;
+
 import eu.fasten.core.data.ArrayImmutableDirectedGraph;
 import eu.fasten.core.data.DirectedGraph;
 import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
@@ -59,7 +61,7 @@ public class StitchedGraph
 
     private Map<FastenURI, Set<Long>> localURIToGlobalId = new HashMap<>();
 
-    private Map<String, Map<FastenURI, Long>> resolvedURIToGraphId = new HashMap<>();
+    private Map<String, Map<FastenURI, Long>> localProductURIToGraphId = new HashMap<>();
 
     public StitchedGraph(MavenResolvedCallGraph projectRCG, List<MavenResolvedCallGraph> dependencyRCGs)
     {
@@ -233,11 +235,11 @@ public class StitchedGraph
     private long addMethods(JavaScope scope, MavenResolvedCallGraph rcg, long offset,
         ArrayImmutableDirectedGraph.Builder builder)
     {
-        Map<FastenURI, JavaType> types = rcg.getGraph().getClassHierarchy().get(scope);
+        BiMap<String, JavaType> types = rcg.getGraph().getClassHierarchy().get(scope);
 
         long biggest = offset;
 
-        for (Map.Entry<FastenURI, JavaType> aClass : types.entrySet()) {
+        for (Map.Entry<String, JavaType> aClass : types.entrySet()) {
             for (Map.Entry<Integer, JavaNode> methodEntry : aClass.getValue().getMethods().entrySet()) {
                 // Calculate global version of the node id
                 long globalId = toGlobalId(offset, methodEntry.getKey());
@@ -266,14 +268,15 @@ public class StitchedGraph
                             graphId = -1;
                         }
                     } else {
-                        // FIXME: Warkaround a bug in fasten-core which sometimes duplicate the local calls as resolved
+                        // FIXME: Workaround a bug in fasten-core which sometimes duplicate the local calls as resolved
                         // calls
-                        if (aClass.getKey().getProduct().equals(rcg.getGraph().product)) {
+                        FastenURI fastenURI = FastenURI.create(aClass.getKey());
+                        if (fastenURI.getProduct().equals(rcg.getGraph().product)) {
                             // Forget bad nodes
                             graphId = -1;
                         } else {
                             // Check if there is an internal node matching this resolved node
-                            graphId = getGraphId(aClass.getKey().getProduct(), globalId, methodEntry.getValue());
+                            graphId = getGraphId(fastenURI.getProduct(), globalId, methodEntry.getValue());
 
                             // Add resolved node only if the internal node is not already there
                             if (graphId == globalId) {
@@ -296,7 +299,7 @@ public class StitchedGraph
 
     private long getGraphId(String productId, long globalId, JavaNode node)
     {
-        Map<FastenURI, Long> product = this.resolvedURIToGraphId.computeIfAbsent(productId, k -> new HashMap<>());
+        Map<FastenURI, Long> product = this.localProductURIToGraphId.computeIfAbsent(productId, k -> new HashMap<>());
 
         return product.computeIfAbsent(node.getUri(), k -> globalId);
     }
