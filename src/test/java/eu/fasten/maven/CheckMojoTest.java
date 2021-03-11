@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
@@ -47,6 +48,7 @@ import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.project.MavenProject;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -88,6 +90,17 @@ class CheckMojoTest
     private MavenProject project = new MavenProject();
 
     private MavenSession session = mock(MavenSession.class);
+
+    private <T> void assertEqualSet(Set<T> set1, Set<T> set2)
+    {
+        List<T> list1 = new ArrayList<>(set1);
+        List<T> list2 = new ArrayList<>(set2);
+
+        list1.sort(null);
+        list2.sort(null);
+
+        assertEquals(list1, list2);
+    }
 
     @BeforeEach
     void beforeEach() throws IllegalAccessException
@@ -163,7 +176,7 @@ class CheckMojoTest
         List<StitchedGraphNode> nodes = this.mojo.graph.getStitchedNodes();
 
         // All stitched nodes
-        assertEquals(SetUtils.hashSet(
+        assertEqualSet(SetUtils.hashSet(
             "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.%3Cinit%3E()%2Fjava.lang%2FVoidType",
             "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m1()%2Fjava.lang%2FVoidType",
             "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m2()%2Fjava.lang%2FVoidType",
@@ -177,7 +190,7 @@ class CheckMojoTest
             nodes.stream().map(node -> node.getFullURI()).collect(Collectors.toSet()));
 
         // Resolved node URIs
-        assertEquals(SetUtils.hashSet(
+        assertEqualSet(SetUtils.hashSet(
             "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.%3Cinit%3E()%2Fjava.lang%2FVoidType",
             "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m1()%2Fjava.lang%2FVoidType",
             "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.a/A.m2()%2Fjava.lang%2FVoidType",
@@ -218,7 +231,7 @@ class CheckMojoTest
         List<StitchedGraphNode> nodes = this.mojo.graph.getStitchedNodes();
 
         // Resolved node URIs
-        assertEquals(SetUtils.hashSet(
+        assertEqualSet(SetUtils.hashSet(
             "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.project/ProjectClass.%3Cinit%3E()%2Fjava.lang%2FVoidType",
             "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.project/ProjectClass.m()%2Fjava.lang%2FVoidType",
             "fasten://mvn!org.ow2.asm:asm$7.0/org.objectweb.asm/Label.%3Cinit%3E()%2Fjava.lang%2FVoidType",
@@ -267,7 +280,7 @@ class CheckMojoTest
         assertTrue(this.mojo.reports.get(0).getWarnings().isEmpty());
 
         // Errors
-        assertEquals(
+        assertEqualSet(
             SetUtils.hashSet(
                 "The callable eu.fasten.maven.missing.Missing.mMissing()%2Fjava.lang%2FVoidType cannot be resolved."),
             new HashSet<>(this.mojo.reports.get(0).getErrors()));
