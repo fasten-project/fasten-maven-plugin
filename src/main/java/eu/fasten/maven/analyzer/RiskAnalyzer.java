@@ -20,13 +20,29 @@ package eu.fasten.maven.analyzer;
 import java.util.Set;
 
 /**
+ * An extension point to process the call graph and report high and low risks found in it.
+ * 
  * @version $Id$
  */
 public interface RiskAnalyzer
 {
+    /**
+     * @return the names of the metadata to retrieve when enriching the stitched call graph from remote server
+     */
     Set<String> getMetadatas();
 
+    /**
+     * Initialize the analyzer with configuration provided in the project descriptor.
+     * 
+     * @param configuration the configuration of the analyzer
+     */
     void initialize(RiskAnalyzerConfiguration configuration);
 
+    /**
+     * Run the analyzer on a given context and report high and low risks.
+     * 
+     * @param context information about the project and its dependencies like the stitched call graphs
+     * @return a report of errors and warning hit while running the analyzer
+     */
     RiskReport analyze(RiskContext context);
 }
