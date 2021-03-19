@@ -28,8 +28,6 @@ import org.apache.commons.collections4.iterators.IteratorChain;
 import org.apache.commons.collections4.iterators.IteratorIterable;
 import org.jgrapht.traverse.DepthFirstIterator;
 
-import com.google.common.collect.BiMap;
-
 import eu.fasten.core.data.ArrayImmutableDirectedGraph;
 import eu.fasten.core.data.DirectedGraph;
 import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
@@ -37,6 +35,7 @@ import eu.fasten.core.data.FastenURI;
 import eu.fasten.core.data.JavaNode;
 import eu.fasten.core.data.JavaScope;
 import eu.fasten.core.data.JavaType;
+import it.unimi.dsi.fastutil.ints.IntIntPair;
 import it.unimi.dsi.fastutil.longs.LongLongPair;
 import it.unimi.dsi.fastutil.longs.LongSet;
 
@@ -91,10 +90,10 @@ public class StitchedGraph
         LongSet externalCalls = this.fullGraph.externalNodes();
 
         IteratorChain<Long> projectCalls = new IteratorChain<>(
-            projectRCG.getGraph().getGraph().getInternalCalls().keySet().stream().map(l -> l.get(0).longValue())
+            projectRCG.getGraph().getGraph().getInternalCalls().keySet().stream().map(link -> (long) link.leftInt())
                 .iterator(),
             projectRCG.getGraph().getGraph().getExternalCalls().keySet().stream()
-                .map(l -> this.globalIdToGraphId.get(l.get(0).longValue())).iterator());
+                .map(link -> this.globalIdToGraphId.get((long) link.leftInt())).iterator());
 
         appendNodeAndSuccessors(new IteratorIterable<>(projectCalls), stitchedBuilder, externalCalls, handledNodes);
 
@@ -206,27 +205,27 @@ public class StitchedGraph
         biggest = Math.max(biggest, addMethods(JavaScope.externalTypes, rcg, offset, builder));
 
         // Arcs
-        for (final List<Integer> l : rcg.getGraph().getGraph().getInternalCalls().keySet()) {
-            builder.addArc(toGraphId(offset, l.get(0)), toGraphId(offset, l.get(1)));
+        for (final IntIntPair link : rcg.getGraph().getGraph().getInternalCalls().keySet()) {
+            builder.addArc(toGraphId(offset, link.leftInt()), toGraphId(offset, link.rightInt()));
         }
-        for (final List<Integer> l : rcg.getGraph().getGraph().getResolvedCalls().keySet()) {
+        for (final IntIntPair link : rcg.getGraph().getGraph().getResolvedCalls().keySet()) {
             // FIXME: Workaround a bug in fasten-core which sometimes duplicate the local calls as resolved
             // calls
-            Long graphIdRight = toGraphId(offset, l.get(1));
+            Long graphIdRight = toGraphId(offset, link.rightInt());
             if (graphIdRight == null) {
                 continue;
             }
 
-            builder.addArc(toGraphId(offset, l.get(0)), toGraphId(offset, l.get(1)));
+            builder.addArc(toGraphId(offset, link.leftInt()), graphIdRight);
         }
-        for (final List<Integer> l : rcg.getGraph().getGraph().getExternalCalls().keySet()) {
+        for (final IntIntPair link : rcg.getGraph().getGraph().getExternalCalls().keySet()) {
             // Skip external calls which are duplicated in the resolved calls
-            Long graphIdRight = toGraphId(offset, l.get(1));
+            Long graphIdRight = toGraphId(offset, link.rightInt());
             if (graphIdRight == null) {
                 continue;
             }
 
-            builder.addArc(toGraphId(offset, l.get(0)), graphIdRight);
+            builder.addArc(toGraphId(offset, link.leftInt()), graphIdRight);
         }
 
         return biggest;
@@ -235,7 +234,7 @@ public class StitchedGraph
     private long addMethods(JavaScope scope, MavenResolvedCallGraph rcg, long offset,
         ArrayImmutableDirectedGraph.Builder builder)
     {
-        BiMap<String, JavaType> types = rcg.getGraph().getClassHierarchy().get(scope);
+        Map<String, JavaType> types = rcg.getGraph().getClassHierarchy().get(scope);
 
         long biggest = offset;
 

@@ -19,14 +19,13 @@ package eu.fasten.maven;
 
 import java.io.File;
 import java.io.InputStream;
+import java.util.EnumMap;
 import java.util.Map;
 
 import org.apache.maven.Maven;
 import org.apache.maven.artifact.Artifact;
 import org.json.JSONObject;
 import org.json.JSONTokener;
-
-import com.google.common.collect.BiMap;
 
 import eu.fasten.core.data.ExtendedBuilder;
 import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
@@ -54,7 +53,7 @@ public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCall
      * @param graphFile the file in which the graph was serialized
      */
     public MavenExtendedRevisionJavaCallGraph(Artifact artifact,
-        ExtendedBuilder<Map<JavaScope, BiMap<String, JavaType>>> builder, File graphFile)
+        ExtendedBuilder<EnumMap<JavaScope, Map<String, JavaType>>> builder, File graphFile)
     {
         super(builder);
 
