@@ -43,6 +43,11 @@ public class RiskReport
             this.throwable = throwable;
         }
 
+        public Object[] getArgArray()
+        {
+            return this.argArray;
+        }
+
         public Throwable getThrowable()
         {
             return this.throwable;

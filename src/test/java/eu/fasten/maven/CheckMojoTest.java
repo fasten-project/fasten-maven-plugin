@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -48,7 +47,6 @@ import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.project.MavenProject;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -280,10 +278,8 @@ class CheckMojoTest
         assertTrue(this.mojo.reports.get(0).getWarnings().isEmpty());
 
         // Errors
-        assertEqualSet(
-            SetUtils.hashSet(
-                "The callable eu.fasten.maven.missing.Missing.mMissing()%2Fjava.lang%2FVoidType cannot be resolved."),
-            new HashSet<>(this.mojo.reports.get(0).getErrors()));
+        assertEqualSet(SetUtils.hashSet("eu.fasten.maven.missing.Missing.mMissing()%2Fjava.lang%2FVoidType"),
+            this.mojo.reports.get(0).getErrors().stream().map(m -> m.getArgArray()[0]).collect(Collectors.toSet()));
 
         configuration.setIgnoredCallables(Arrays.asList("eu.fasten.maven.missing.Missing.mMissing.*"));
 
