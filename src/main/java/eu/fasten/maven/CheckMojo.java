@@ -271,8 +271,8 @@ public class CheckMojo extends AbstractMojo
             foundErrors |= !report.getErrors().isEmpty();
 
             getLog().info(report.getAnalyzer() + ": ");
-            report.getErrors().forEach(r -> getLog().error("  " + r));
-            report.getWarnings().forEach(r -> getLog().warn("  " + r));
+            report.getErrors().forEach(r -> getLog().error("  " + r.getFormattedMessage(), r.getThrowable()));
+            report.getWarnings().forEach(r -> getLog().warn("  " + r.getFormattedMessage(), r.getThrowable()));
         }
 
         if (foundErrors && this.failOnRisk) {

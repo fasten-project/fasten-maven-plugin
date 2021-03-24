@@ -21,7 +21,6 @@ import java.util.Set;
 
 import org.apache.commons.collections4.SetUtils;
 
-import eu.fasten.core.data.FastenURI;
 import eu.fasten.core.data.JavaScope;
 import eu.fasten.maven.StitchedGraphNode;
 
@@ -33,7 +32,7 @@ import eu.fasten.maven.StitchedGraphNode;
 public class BinaryRiskAnalyzer extends AbstractRiskAnalyzer
 {
     private static final Set<String> PROVIDED_PACKAGES =
-        SetUtils.hashSet("java.", "com.sun.", "sun.", "jdk.", "javax.");
+        SetUtils.hashSet("java.", "com.sun.", "sun.", "jdk.", "javax.", "jakarta.");
 
     @Override
     public RiskReport analyze(RiskContext context)
@@ -41,26 +40,21 @@ public class BinaryRiskAnalyzer extends AbstractRiskAnalyzer
         RiskReport report = new RiskReport(this);
 
         for (StitchedGraphNode node : context.getGraph().getStitchedNodes(JavaScope.externalTypes)) {
-            FastenURI uri = node.getLocalNode().getUri();
-            String signature = uri.getRawNamespace() + "." + uri.getRawEntity();
-
-            // Check of the class is ignored
-            if (!isIgnored(signature)) {
-                report.error("The callable " + signature + " cannot be resolved.");
-            }
+            reportError(node.getLocalNode().getUri(), "The callable {} cannot be resolved.", report);
         }
 
         return report;
     }
 
-    private boolean isIgnored(String signature)
+    @Override
+    protected boolean isIgnored(String signature)
     {
         // Check if the class is a known standard Java class
         if (PROVIDED_PACKAGES.stream().anyMatch(signature::startsWith)) {
             return true;
         }
 
-        // Check if the signature is covered by a configured ignore
-        return getConfiguration().getIgnoredCallables().stream().anyMatch(p -> p.matcher(signature).matches());
+        // Fallback on standard filtering
+        return super.isIgnored(signature);
     }
 }

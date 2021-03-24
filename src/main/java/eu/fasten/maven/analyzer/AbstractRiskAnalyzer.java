@@ -20,6 +20,8 @@ package eu.fasten.maven.analyzer;
 import java.util.Collections;
 import java.util.Set;
 
+import eu.fasten.core.data.FastenURI;
+
 /**
  * @version $Id$
  */
@@ -45,5 +47,26 @@ public abstract class AbstractRiskAnalyzer implements RiskAnalyzer
     public Set<String> getMetadatas()
     {
         return Collections.emptySet();
+    }
+
+    protected String getSignature(FastenURI uri)
+    {
+        return uri.getRawNamespace() + "." + uri.getRawEntity();
+    }
+
+    protected void reportError(FastenURI uri, String message, RiskReport report)
+    {
+        String signature = getSignature(uri);
+
+        // Check of the class is ignored
+        if (!isIgnored(signature)) {
+            report.error(message, signature);
+        }
+    }
+
+    protected boolean isIgnored(String signature)
+    {
+        // Check if the signature is covered by a configured ignore
+        return getConfiguration().getIgnoredCallables().stream().anyMatch(p -> p.matcher(signature).matches());
     }
 }
