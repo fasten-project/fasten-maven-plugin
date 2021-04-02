@@ -17,43 +17,6 @@
  */
 package eu.fasten.maven;
 
-import eu.fasten.analyzer.javacgopal.data.CallGraphConstructor;
-import eu.fasten.analyzer.javacgopal.data.PartialCallGraph;
-import eu.fasten.analyzer.javacgopal.data.exceptions.OPALException;
-import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
-import eu.fasten.core.data.JSONUtils;
-import eu.fasten.core.data.JavaScope;
-import eu.fasten.core.merge.LocalMerger;
-import eu.fasten.maven.analyzer.MavenRiskContext;
-import eu.fasten.maven.analyzer.RiskAnalyzer;
-import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
-import eu.fasten.maven.analyzer.RiskContext;
-import eu.fasten.maven.analyzer.RiskReport;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.io.entity.StringEntity;
-import org.apache.hc.core5.net.URIBuilder;
-import org.apache.maven.artifact.Artifact;
-import org.apache.maven.execution.MavenSession;
-import org.apache.maven.plugin.AbstractMojo;
-import org.apache.maven.plugin.MojoExecutionException;
-import org.apache.maven.plugin.MojoFailureException;
-import org.apache.maven.plugins.annotations.LifecyclePhase;
-import org.apache.maven.plugins.annotations.Mojo;
-import org.apache.maven.plugins.annotations.Parameter;
-import org.apache.maven.plugins.annotations.ResolutionScope;
-import org.apache.maven.project.MavenProject;
-import org.json.JSONArray;
-import org.json.JSONObject;
-import org.json.JSONTokener;
-
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
@@ -71,6 +34,45 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.net.URIBuilder;
+import org.apache.hc.core5.net.URLEncodedUtils;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.plugin.AbstractMojo;
+import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.plugins.annotations.LifecyclePhase;
+import org.apache.maven.plugins.annotations.Mojo;
+import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.plugins.annotations.ResolutionScope;
+import org.apache.maven.project.MavenProject;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.json.JSONTokener;
+
+import eu.fasten.analyzer.javacgopal.data.CallGraphConstructor;
+import eu.fasten.analyzer.javacgopal.data.PartialCallGraph;
+import eu.fasten.analyzer.javacgopal.data.exceptions.OPALException;
+import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
+import eu.fasten.core.data.JSONUtils;
+import eu.fasten.core.data.JavaScope;
+import eu.fasten.core.merge.LocalMerger;
+import eu.fasten.maven.analyzer.MavenRiskContext;
+import eu.fasten.maven.analyzer.RiskAnalyzer;
+import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
+import eu.fasten.maven.analyzer.RiskContext;
+import eu.fasten.maven.analyzer.RiskReport;
 
 /**
  * Build a call graph of the module and its dependencies.
@@ -90,21 +92,26 @@ public class CheckMojo extends AbstractMojo
     private File outputDirectory;
 
     @Parameter(defaultValue = "CHA")
-    private String genAlgorithm;
+    private String genAlgorithm = "CHA";
 
     @Parameter(defaultValue = "true", property = "failOnRisk")
-    private boolean failOnRisk;
+    private boolean failOnRisk = true;
 
     @Parameter
     private List<RiskAnalyzerConfiguration> configurations;
 
     @Parameter(defaultValue = "https://api.fasten-project.eu/api", property = "fastenApiUrl")
-    private String fastenApiUrl;
+    private String fastenApiUrl = "https://api.fasten-project.eu/api";
 
     @Parameter(defaultValue = "https://api.fasten-project.eu/mvn", property = "fastenRcgUrl")
-    private String fastenRcgUrl;
+    private String fastenRcgUrl = "https://api.fasten-project.eu/mvn";
 
-    private List<RiskAnalyzer> analyzers;
+    @Parameter(defaultValue = "100", property = "fastenRcgUrl")
+    private int metadataBatch = 100;
+
+    private List<RiskAnalyzer> analyzersCache;
+
+    private Set<String> packageMetadataNames;
 
     private CloseableHttpClient httpclient;
 
@@ -196,11 +203,11 @@ public class CheckMojo extends AbstractMojo
 
     private List<RiskAnalyzer> getAnalyzers() throws MojoExecutionException
     {
-        if (this.analyzers == null) {
+        if (this.analyzersCache == null) {
             if (this.configurations == null) {
-                this.analyzers = Collections.emptyList();
+                this.analyzersCache = Collections.emptyList();
             } else {
-                this.analyzers = new ArrayList<>(this.configurations.size());
+                this.analyzersCache = new ArrayList<>(this.configurations.size());
 
                 for (RiskAnalyzerConfiguration configuration : this.configurations) {
                     RiskAnalyzer analyzer;
@@ -218,12 +225,12 @@ public class CheckMojo extends AbstractMojo
 
                     analyzer.initialize(configuration);
 
-                    this.analyzers.add(analyzer);
+                    this.analyzersCache.add(analyzer);
                 }
             }
         }
 
-        return this.analyzers;
+        return this.analyzersCache;
     }
 
     private RiskAnalyzer createAnalyzer(String type) throws InstantiationException, IllegalAccessException,
@@ -267,7 +274,7 @@ public class CheckMojo extends AbstractMojo
         }
 
         boolean foundErrors = false;
-        for (RiskReport report : reports) {
+        for (RiskReport report : this.reports) {
             foundErrors |= !report.getErrors().isEmpty();
 
             getLog().info(report.getAnalyzer() + ": ");
@@ -280,15 +287,47 @@ public class CheckMojo extends AbstractMojo
         }
     }
 
-    private void enrich() throws IOException, URISyntaxException, MojoExecutionException
+    private void enrich() throws MojoExecutionException, URISyntaxException, IOException
     {
         if (this.httpclient == null) {
             // Offline mode
             return;
         }
 
+        Set<MavenResolvedCallGraph> dependencies = enrichStitchedCallables();
+        enrichDependnencies(dependencies);
+    }
+
+    private void enrichDependnencies(Set<MavenResolvedCallGraph> dependencies)
+        throws MojoExecutionException, IOException
+    {
+        for (MavenResolvedCallGraph dependency : dependencies) {
+            getLog().info("Requesting meta data for dependency " + dependency.getArtifact());
+
+            JSONObject responseData = getMetadataPackage(dependency);
+
+            if (responseData != null) {
+                Set<String> metadataNames = getPackageMetadataNames();
+
+                JSONObject metadata = (JSONObject) responseData.get("metadata");
+                if (metadata != null) {
+                    for (Map.Entry<String, Object> entry : metadata.toMap().entrySet()) {
+                        if (metadataNames.contains(entry.getKey())) {
+                            dependency.getMetadata().put(entry.getKey(), entry.getValue());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private Set<MavenResolvedCallGraph> enrichStitchedCallables()
+        throws MojoExecutionException, URISyntaxException, IOException
+    {
+        Set<MavenResolvedCallGraph> dependencies = new HashSet<>();
+
         List<StitchedGraphNode> nodes = this.graph.getStitchedNodes();
-        getLog().info("Enriching stitched call graph with " + nodes.size() + " nodes.");
+        getLog().info("Enriching stitched call graph with " + nodes.size() + " callable nodes.");
         Map<String, StitchedGraphNode> map = new HashMap<>();
         JSONArray json = new JSONArray();
         for (StitchedGraphNode node : nodes) {
@@ -296,30 +335,82 @@ public class CheckMojo extends AbstractMojo
                 String fullURI = node.getFullURI();
                 json.put(fullURI);
                 map.put(fullURI, node);
+
+                // Remember the dependency package
+                dependencies.add(node.getPackageRCG());
             }
         }
-        getLog().info("Requesting meta data for " + map.keySet().size() + " nodes.");
+        getLog().info("Requesting meta data for " + map.keySet().size() + " callable nodes.");
 
         if (!map.isEmpty()) {
-            // Get the list of metadata to retrieve
-            HttpPost httpPost = createMetadataCallableRequest(json);
-            try (CloseableHttpResponse response = this.httpclient.execute(httpPost)) {
-                if (response.getCode() == 200) {
-                    JSONObject responseData = new JSONObject(new JSONTokener(response.getEntity().getContent()));
+            JSONObject responseData = getMetadataCallable(json);
 
-                    getLog().info("Received meta data for " + responseData.keySet().size() + " nodes.");
-                    for (String uri : responseData.keySet()) {
-                        StitchedGraphNode node = map.get(uri);
+            if (responseData != null) {
+                getLog().info("Received meta data for " + responseData.keySet().size() + " callable nodes.");
 
-                        JSONObject metadata = (JSONObject) responseData.get(uri);
+                for (String uri : responseData.keySet()) {
+                    StitchedGraphNode node = map.get(uri);
 
-                        node.getLocalNode().getMetadata().putAll(metadata.toMap());
-                    }
-                } else {
-                    getLog().warn("Unexpected code when resolving nodes metadata: " + response.getCode());
+                    JSONObject metadata = (JSONObject) responseData.get(uri);
+
+                    node.getLocalNode().getMetadata().putAll(metadata.toMap());
                 }
             }
         }
+
+        return dependencies;
+    }
+
+    private JSONObject getMetadataPackage(MavenResolvedCallGraph dependency) throws IOException
+    {
+        // Get the list of metadata to retrieve
+        HttpGet httpGet = createMetadataPackageRequest(dependency);
+        try (CloseableHttpResponse response = this.httpclient.execute(httpGet)) {
+            if (response.getCode() == 200) {
+                return new JSONObject(new JSONTokener(response.getEntity().getContent()));
+            } else {
+                getLog().warn("Unexpected code when resolving metadata for dependency " + dependency.getArtifact()
+                    + ": " + response.getCode());
+
+                return null;
+            }
+        }
+    }
+
+    private JSONObject getMetadataCallable(JSONArray input)
+        throws MojoExecutionException, URISyntaxException, IOException
+    {
+        // Get the list of metadata to retrieve
+        HttpPost httpPost = createMetadataCallableRequest(input);
+        try (CloseableHttpResponse response = this.httpclient.execute(httpPost)) {
+            if (response.getCode() == 200) {
+                return new JSONObject(new JSONTokener(response.getEntity().getContent()));
+            } else {
+                getLog().warn("Unexpected code when resolving callables metadata: " + response.getCode());
+
+                return null;
+            }
+        }
+    }
+
+    private Set<String> getPackageMetadataNames() throws MojoExecutionException
+    {
+        if (this.packageMetadataNames == null) {
+            this.packageMetadataNames = new HashSet<>();
+            for (RiskAnalyzer analyzers : getAnalyzers()) {
+                this.packageMetadataNames.addAll(analyzers.getPackageMetadatas());
+            }
+
+            return this.packageMetadataNames;
+        }
+
+        return this.packageMetadataNames;
+    }
+
+    private HttpGet createMetadataPackageRequest(MavenResolvedCallGraph dependency)
+    {
+        return new HttpGet(this.fastenApiUrl + URLEncodedUtils.formatSegments("mvn", "packages",
+            dependency.getGraph().uri.getProduct(), dependency.getGraph().uri.getVersion(), "metadata"));
     }
 
     private HttpPost createMetadataCallableRequest(JSONArray json) throws URISyntaxException, MojoExecutionException
@@ -327,7 +418,7 @@ public class CheckMojo extends AbstractMojo
         URIBuilder builder = new URIBuilder(this.fastenApiUrl + "/metadata/callables");
         Set<String> metadataNames = new HashSet<>();
         for (RiskAnalyzer analyzers : getAnalyzers()) {
-            metadataNames.addAll(analyzers.getMetadatas());
+            metadataNames.addAll(analyzers.getCallableMetadatas());
         }
         metadataNames.forEach(e -> builder.addParameter("attributes", e));
 
@@ -460,7 +551,8 @@ public class CheckMojo extends AbstractMojo
         return cg;
     }
 
-    private void writeRcgJsonString(ExtendedRevisionJavaCallGraph rcg, File outputFile) throws IOException {
+    private void writeRcgJsonString(ExtendedRevisionJavaCallGraph rcg, File outputFile) throws IOException
+    {
         var out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outputFile), StandardCharsets.UTF_8));
         out.write(JSONUtils.toJSONString(rcg));
         out.flush();

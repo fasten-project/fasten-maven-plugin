@@ -19,7 +19,6 @@ package eu.fasten.maven.analyzer;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -35,6 +34,8 @@ public class RiskAnalyzerConfiguration
     private Boolean failOnRisk;
 
     private List<Pattern> ignoredCallables = Collections.emptyList();
+
+    private List<Pattern> ignoredDependencies = Collections.emptyList();
 
     private RiskAnalyzerProperties properties;
 
@@ -71,7 +72,7 @@ public class RiskAnalyzerConfiguration
     }
 
     /**
-     * @return the ignoredCallables
+     * @return the patterns matching callables to ignore in the analyzer
      */
     public List<Pattern> getIgnoredCallables()
     {
@@ -79,11 +80,27 @@ public class RiskAnalyzerConfiguration
     }
 
     /**
-     * @param ignoredCallables the ignoredCallables to set
+     * @param ignoredCallables the patterns matching callables to ignore in the analyzer
      */
     public void setIgnoredCallables(List<String> ignoredCallables)
     {
         this.ignoredCallables = ignoredCallables.stream().map(Pattern::compile).collect(Collectors.toList());
+    }
+
+    /**
+     * @return the patterns matching the dependencies to ignore in the analyzer
+     */
+    public List<Pattern> getIgnoredDependencies()
+    {
+        return this.ignoredDependencies;
+    }
+
+    /**
+     * @param ignoredDependencies the patterns matching the dependencies to ignore in the analyzer
+     */
+    public void setIgnoredDependencies(List<String> ignoredDependencies)
+    {
+        this.ignoredDependencies = ignoredDependencies.stream().map(Pattern::compile).collect(Collectors.toList());
     }
 
     /**

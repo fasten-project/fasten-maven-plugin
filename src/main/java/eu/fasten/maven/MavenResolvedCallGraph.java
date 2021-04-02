@@ -17,6 +17,9 @@
  */
 package eu.fasten.maven;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.maven.artifact.Artifact;
 
 import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
@@ -33,6 +36,8 @@ public class MavenResolvedCallGraph
     private final boolean remote;
 
     private final ExtendedRevisionJavaCallGraph graph;
+
+    private final Map<String, Object> metadata = new HashMap<>();
 
     /**
      * @param artifact the Maven artifact
@@ -68,5 +73,13 @@ public class MavenResolvedCallGraph
     public ExtendedRevisionJavaCallGraph getGraph()
     {
         return this.graph;
+    }
+
+    /**
+     * @return the metadata associated with the package
+     */
+    public Map<String, Object> getMetadata()
+    {
+        return this.metadata;
     }
 }

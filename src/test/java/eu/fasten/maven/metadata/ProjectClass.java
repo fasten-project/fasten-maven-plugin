@@ -1,4 +1,4 @@
-package eu.fasten.maven.project;
+package eu.fasten.maven.metadata;
 
 import org.objectweb.asm.Label;
 

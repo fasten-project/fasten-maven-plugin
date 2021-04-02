@@ -38,6 +38,7 @@ import java.util.zip.ZipEntry;
 import org.apache.commons.collections4.SetUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.reflect.FieldUtils;
+import org.apache.hc.core5.util.Asserts;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.DefaultArtifact;
 import org.apache.maven.execution.MavenSession;
@@ -52,8 +53,12 @@ import org.junit.jupiter.api.Test;
 
 import eu.fasten.core.data.JavaScope;
 import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
+import eu.fasten.maven.analyzer.RiskReport;
+import eu.fasten.maven.analyzer.SecurityRiskAnalyzer;
+import eu.fasten.maven.analyzer.RiskReport.Message;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -158,7 +163,6 @@ class CheckMojoTest
         jar(dependencyCDir, C_CLASSFILE, BC_CLASSFILE);
 
         FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
-        FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
 
         Build build = new Build();
         build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
@@ -208,13 +212,10 @@ class CheckMojoTest
         this.projectWorkDirTarget = new File(this.projectWorkDir, "target/");
         this.projectWorkDirTargetClasses = new File(this.projectWorkDirTarget, "classes/");
 
-        FileUtils.copyDirectory(new File("target/test-classes/eu/fasten/maven/project/"),
-            new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/project/"));
+        FileUtils.copyDirectory(new File("target/test-classes/eu/fasten/maven/metadata/"),
+            new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/metadata/"));
 
         FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
-        FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
-        FieldUtils.writeField(this.mojo, "fastenApiUrl", "https://api.fasten-project.eu/api", true);
-        FieldUtils.writeField(this.mojo, "fastenRcgUrl", "https://api.fasten-project.eu/mvn", true);
 
         Build build = new Build();
         build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
@@ -230,12 +231,60 @@ class CheckMojoTest
 
         // Resolved node URIs
         assertEqualSet(SetUtils.hashSet(
-            "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.project/ProjectClass.%3Cinit%3E()%2Fjava.lang%2FVoidType",
-            "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.project/ProjectClass.m()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.metadata/ProjectClass.%3Cinit%3E()%2Fjava.lang%2FVoidType",
+            "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.metadata/ProjectClass.m()%2Fjava.lang%2FVoidType",
             "fasten://mvn!org.ow2.asm:asm$7.0/org.objectweb.asm/Label.%3Cinit%3E()%2Fjava.lang%2FVoidType",
             "fasten://mvn!org.ow2.asm:asm$7.0/org.objectweb.asm/Label.%3Cclinit%3E()%2Fjava.lang%2FVoidType"),
             nodes.stream().filter(node -> node.getScope() != JavaScope.externalTypes).map(node -> node.getFullURI())
                 .collect(Collectors.toSet()));
+    }
+
+    @Test
+    void testSecurity() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException
+    {
+        this.projectWorkDir = new File(this.testWorkDir, "PROJECT/");
+        this.projectWorkDirTarget = new File(this.projectWorkDir, "target/");
+        this.projectWorkDirTargetClasses = new File(this.projectWorkDirTarget, "classes/");
+
+        FileUtils.copyDirectory(new File("target/test-classes/eu/fasten/maven/security/"),
+            new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/security/"));
+
+        FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
+        FieldUtils.writeField(this.mojo, "failOnRisk", false, true);
+
+        Build build = new Build();
+        build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
+        this.project.setBuild(build);
+
+        Set<Artifact> artifacts = new LinkedHashSet<>();
+        artifacts.add(artifact("org.jboss.resteasy", "resteasy-jaxrs", "3.0.23.Final", new File(
+            "/home/tmortagne/.m2/repository/org/jboss/resteasy/resteasy-jaxrs/3.0.23.Final/resteasy-jaxrs-3.0.23.Final.jar")));
+        this.project.setArtifacts(artifacts);
+
+        RiskAnalyzerConfiguration configuration = new RiskAnalyzerConfiguration();
+        configuration.setType("fasten.security");
+        FieldUtils.writeField(this.mojo, "configurations", Arrays.asList(configuration), true);
+
+        this.mojo.execute();
+
+        List<RiskReport> reports = this.mojo.reports;
+
+        assertEquals(1, reports.size());
+
+        RiskReport report = reports.get(0);
+
+        assertSame(SecurityRiskAnalyzer.class, report.getAnalyzer().getClass());
+
+        assertEquals(0, report.getWarnings().size());
+
+        List<Message> errors = report.getErrors();
+
+        assertEquals(1, errors.size());
+
+        assertEquals(
+            "The vulnerability CVE-2017-7561 affects dependency org.jboss.resteasy:resteasy-jaxrs:jar:3.0.23.Final because of the following used callables:\n"
+                + "  * org.jboss.resteasy.plugins.interceptors.CorsFilter.preflight(%2Fjava.lang%2FString,%2Fjavax.ws.rs.container%2FContainerRequestContext)%2Fjava.lang%2FVoidType",
+            errors.get(0).getFormattedMessage());
     }
 
     @Test
@@ -253,9 +302,6 @@ class CheckMojoTest
         jar(dependencyCDir, C_CLASSFILE, BC_CLASSFILE);
 
         FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
-        FieldUtils.writeField(this.mojo, "genAlgorithm", "CHA", true);
-        FieldUtils.writeField(this.mojo, "fastenApiUrl", "https://api.fasten-project.eu/api", true);
-        FieldUtils.writeField(this.mojo, "fastenRcgUrl", "https://api.fasten-project.eu/mvn", true);
 
         Build build = new Build();
         build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());

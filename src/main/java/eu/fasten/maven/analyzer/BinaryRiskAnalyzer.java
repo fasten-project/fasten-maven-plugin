@@ -47,7 +47,7 @@ public class BinaryRiskAnalyzer extends AbstractRiskAnalyzer
     }
 
     @Override
-    protected boolean isIgnored(String signature)
+    protected boolean isCallableIgnored(String signature)
     {
         // Check if the class is a known standard Java class
         if (PROVIDED_PACKAGES.stream().anyMatch(signature::startsWith)) {
@@ -55,6 +55,6 @@ public class BinaryRiskAnalyzer extends AbstractRiskAnalyzer
         }
 
         // Fallback on standard filtering
-        return super.isIgnored(signature);
+        return super.isCallableIgnored(signature);
     }
 }

@@ -77,6 +77,9 @@ public class StitchedGraphNode
         return this.packageRCG;
     }
 
+    /**
+     * @return the full FASTEN URI
+     */
     public String getFullURI()
     {
         // FIXME: not sure what's best for external type

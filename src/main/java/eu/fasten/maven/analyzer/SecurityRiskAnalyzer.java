@@ -17,16 +17,18 @@
  */
 package eu.fasten.maven.analyzer;
 
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.collections4.SetUtils;
-import org.jgrapht.traverse.DepthFirstIterator;
 
-import eu.fasten.core.data.JavaScope;
+import eu.fasten.core.data.FastenURI;
+import eu.fasten.maven.MavenResolvedCallGraph;
 import eu.fasten.maven.StitchedGraphNode;
-import it.unimi.dsi.fastutil.longs.LongLongPair;
 
 /**
  * Find known security vulnerabilities in the stiched graph.
@@ -37,12 +39,16 @@ public class SecurityRiskAnalyzer extends AbstractRiskAnalyzer
 {
     private static final String VULNERABILITIES = "vulnerabilities";
 
+    private static final String VULNERABILITIES_SEVERITY = "severity";
+
     private static final String VULNERABILITY_DESCRIPTION = "description";
+
+    private static final String VULNERABILITIES_URIS = "vulnerable_fasten_uris";
 
     private static final Set<String> METADATA = SetUtils.hashSet(VULNERABILITIES);
 
     @Override
-    public Set<String> getMetadatas()
+    public Set<String> getPackageMetadatas()
     {
         return METADATA;
     }
@@ -52,32 +58,67 @@ public class SecurityRiskAnalyzer extends AbstractRiskAnalyzer
     {
         RiskReport report = new RiskReport(this);
 
-        DepthFirstIterator<Long, LongLongPair> iterator =
-            new DepthFirstIterator<>(context.getGraph().getStitchedGraph());
-
-        while (iterator.hasNext()) {
-            long edge = iterator.next();
-
-            StitchedGraphNode node = context.getGraph().getNode(edge);
-
-            if (node.getPackageRCG().isRemote() && node.getScope() == JavaScope.internalTypes) {
-                Map<String, Map<String, Object>> vulnerabilities =
-                    (Map) node.getLocalNode().getMetadata().get(VULNERABILITIES);
+        for (MavenResolvedCallGraph dependency : context.getGraph().getStitchedDependenciesRCGs()) {
+            if (dependency.isRemote() && !isDependencyIgnored(dependency)) {
+                Map<String, Map<String, Object>> vulnerabilities = (Map) dependency.getMetadata().get(VULNERABILITIES);
 
                 if (MapUtils.isNotEmpty(vulnerabilities)) {
-                    StringBuilder builder = new StringBuilder("Vulnerabilities have been found in the callable {}:");
-                    for (Map.Entry<String, Map<String, Object>> vulnerability : vulnerabilities.entrySet()) {
-                        builder.append('\n');
-                        builder.append(vulnerability.getKey());
-                        builder.append(':');
-                        builder.append(vulnerability.getValue().get(VULNERABILITY_DESCRIPTION));
-                    }
+                    // The dependency is affected by a security vulnerability
+                    for (Map.Entry<String, Map<String, Object>> entry : vulnerabilities.entrySet()) {
+                        String vulnerabilityId = entry.getKey();
+                        Map<String, Object> vulnerability = entry.getValue();
 
-                    reportError(node.getLocalNode().getUri(), builder.toString(), report);
+                        // Make sure one of the affected methods is part of the stitched call graph
+                        Set<StitchedGraphNode> nodes = vulnerableCallables(vulnerability, context);
+
+                        String message;
+                        if (CollectionUtils.isNotEmpty(nodes)) {
+                            StringBuilder builder = new StringBuilder(
+                                "The vulnerability {} affects dependency {} because of the following used callables:");
+
+                            for (StitchedGraphNode node : nodes) {
+                                builder.append('\n');
+                                builder.append("  * ");
+                                builder.append(getSignature(node.getLocalNode().getUri()));
+                            }
+
+                            message = builder.toString();
+                        } else {
+                            message = "The vulnerability {} affects dependency {}";
+                        }
+
+                        report.error(message, vulnerabilityId, dependency.getArtifact());
+                    }
                 }
             }
         }
 
-        return new RiskReport(this);
+        return report;
+    }
+
+    private Set<StitchedGraphNode> vulnerableCallables(Map<String, Object> vulnerability, RiskContext context)
+    {
+        List<String> uris = (List<String>) vulnerability.get(VULNERABILITIES_URIS);
+
+        Set<StitchedGraphNode> nodes = null;
+        for (String uri : uris) {
+            FastenURI fastenURI = FastenURI.create(uri);
+
+            // Check if the callable is ignored
+            String callableSignature = getSignature(fastenURI);
+            if (!isCallableIgnored(callableSignature)) {
+                // Find the callable node and make sure it's part of the stiched call graph
+                StitchedGraphNode node = context.getGraph().getNode(fastenURI, true);
+
+                if (node != null) {
+                    if (nodes == null) {
+                        nodes = new LinkedHashSet<>(uris.size());
+                    }
+                    nodes.add(node);
+                }
+            }
+        }
+
+        return nodes;
     }
 }

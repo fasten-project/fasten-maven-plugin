@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.Set;
 
 import eu.fasten.core.data.FastenURI;
+import eu.fasten.maven.MavenResolvedCallGraph;
 
 /**
  * @version $Id$
@@ -44,7 +45,13 @@ public abstract class AbstractRiskAnalyzer implements RiskAnalyzer
     }
 
     @Override
-    public Set<String> getMetadatas()
+    public Set<String> getCallableMetadatas()
+    {
+        return Collections.emptySet();
+    }
+
+    @Override
+    public Set<String> getPackageMetadatas()
     {
         return Collections.emptySet();
     }
@@ -59,14 +66,22 @@ public abstract class AbstractRiskAnalyzer implements RiskAnalyzer
         String signature = getSignature(uri);
 
         // Check of the class is ignored
-        if (!isIgnored(signature)) {
+        if (!isCallableIgnored(signature)) {
             report.error(message, signature);
         }
     }
 
-    protected boolean isIgnored(String signature)
+    protected boolean isCallableIgnored(String signature)
     {
         // Check if the signature is covered by a configured ignore
         return getConfiguration().getIgnoredCallables().stream().anyMatch(p -> p.matcher(signature).matches());
+    }
+
+    protected boolean isDependencyIgnored(MavenResolvedCallGraph dependency)
+    {
+        String id = dependency.getArtifact().getGroupId() + ':' + dependency.getArtifact().getArtifactId();
+
+        // Check if the dependency id is covered by a configured ignore
+        return getConfiguration().getIgnoredCallables().stream().anyMatch(p -> p.matcher(id).matches());
     }
 }

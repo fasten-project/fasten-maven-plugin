@@ -48,7 +48,9 @@ public class StitchedGraph
 {
     private final MavenResolvedCallGraph projectRCG;
 
-    private final List<MavenResolvedCallGraph> dependenciesRCGs;
+    private final List<MavenResolvedCallGraph> fullDependenciesRCGs;
+
+    private final Set<MavenResolvedCallGraph> stitchedDependenciesRCGs;
 
     private final DirectedGraph fullGraph;
 
@@ -65,7 +67,8 @@ public class StitchedGraph
     public StitchedGraph(MavenResolvedCallGraph projectRCG, List<MavenResolvedCallGraph> dependencyRCGs)
     {
         this.projectRCG = projectRCG;
-        this.dependenciesRCGs = new ArrayList<>(dependencyRCGs);
+        this.fullDependenciesRCGs = new ArrayList<>(dependencyRCGs);
+        this.stitchedDependenciesRCGs = new HashSet<>();
 
         // Build full graph
 
@@ -75,7 +78,7 @@ public class StitchedGraph
 
         long offset = append(fullBuilder, projectRCG, -1);
 
-        for (MavenResolvedCallGraph dependencyRCG : this.dependenciesRCGs) {
+        for (MavenResolvedCallGraph dependencyRCG : this.fullDependenciesRCGs) {
             offset = append(fullBuilder, dependencyRCG, offset);
         }
 
@@ -107,6 +110,8 @@ public class StitchedGraph
 
         while (iterator.hasNext()) {
             long edge = iterator.next();
+
+            this.stitchedDependenciesRCGs.add(getNode(edge).getPackageRCG());
 
             if (!addedNodes.contains(edge)) {
                 addNode(edge, stitchedBuilder, externalCalls);
@@ -193,6 +198,22 @@ public class StitchedGraph
     public MavenResolvedCallGraph getProjectRCG()
     {
         return this.projectRCG;
+    }
+
+    /**
+     * @return the project's dependencies {@link ExtendedRevisionJavaCallGraph}
+     */
+    public List<MavenResolvedCallGraph> getFullDependenciesRCGs()
+    {
+        return this.fullDependenciesRCGs;
+    }
+
+    /**
+     * @return the project's dependencies containing stitched calls
+     */
+    public Set<MavenResolvedCallGraph> getStitchedDependenciesRCGs()
+    {
+        return this.stitchedDependenciesRCGs;
     }
 
     private long append(ArrayImmutableDirectedGraph.Builder builder, MavenResolvedCallGraph rcg, long offset)
@@ -327,5 +348,26 @@ public class StitchedGraph
     private Long toGraphId(long offset, int localId)
     {
         return this.globalIdToGraphId.get(toGlobalId(offset, localId));
+    }
+
+    public StitchedGraphNode getNode(FastenURI fastenURI, boolean stitched)
+    {
+        if (fastenURI.getProduct() != null) {
+            Map<FastenURI, Long> product = this.localProductURIToGraphId.get(fastenURI.getProduct());
+
+            long graphId = product.get(toLocalFastenURI(fastenURI));
+
+            if (!stitched || this.stitchedGraph.nodes().contains(graphId)) {
+                return getNode(graphId);
+            }
+        }
+
+        return null;
+    }
+
+    private FastenURI toLocalFastenURI(FastenURI fullFastenURI)
+    {
+        return FastenURI.createSchemeless(null, null,
+            null, fullFastenURI.getRawNamespace(), fullFastenURI.getRawEntity());
     }
 }

@@ -27,9 +27,14 @@ import java.util.Set;
 public interface RiskAnalyzer
 {
     /**
-     * @return the names of the metadata to retrieve when enriching the stitched call graph from remote server
+     * @return the names of the metadata to retrieve when enriching the stitched call graph callables from remote server
      */
-    Set<String> getMetadatas();
+    Set<String> getCallableMetadatas();
+
+    /**
+     * @return the names of the metadata to retrieve when enriching the stitched call graph packages from remote server
+     */
+    Set<String> getPackageMetadatas();
 
     /**
      * Initialize the analyzer with configuration provided in the project descriptor.
