@@ -60,7 +60,7 @@ public class MavenResolvedCallGraph
     }
 
     /**
-     * @return true if the call graph originate from a FASTEN server
+     * @return true if the call graph might contain remote metadata
      */
     public boolean isRemote()
     {

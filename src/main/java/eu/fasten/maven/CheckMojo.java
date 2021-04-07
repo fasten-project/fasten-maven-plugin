@@ -82,6 +82,18 @@ import eu.fasten.maven.analyzer.RiskReport;
 @Mojo(name = "check", defaultPhase = LifecyclePhase.VERIFY, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME, requiresProject = true, threadSafe = true)
 public class CheckMojo extends AbstractMojo
 {
+    public enum MetadataDownload
+    {
+        // Only for dependencies found on the call graph server
+        auto,
+
+        // For all released dependencies
+        releases,
+
+        // For all dependencies
+        all
+    }
+
     @Parameter(defaultValue = "${session}", required = true, readonly = true)
     private MavenSession session;
 
@@ -108,6 +120,9 @@ public class CheckMojo extends AbstractMojo
 
     @Parameter(defaultValue = "100", property = "fastenRcgUrl")
     private int metadataBatch = 100;
+
+    @Parameter(defaultValue = "auto", property = "metadataDownload")
+    private MetadataDownload metadataDownload = MetadataDownload.auto;
 
     private List<RiskAnalyzer> analyzersCache;
 
@@ -295,10 +310,10 @@ public class CheckMojo extends AbstractMojo
         }
 
         Set<MavenResolvedCallGraph> dependencies = enrichStitchedCallables();
-        enrichDependnencies(dependencies);
+        enrichDependencies(dependencies);
     }
 
-    private void enrichDependnencies(Set<MavenResolvedCallGraph> dependencies)
+    private void enrichDependencies(Set<MavenResolvedCallGraph> dependencies)
         throws MojoExecutionException, IOException
     {
         for (MavenResolvedCallGraph dependency : dependencies) {
@@ -368,13 +383,15 @@ public class CheckMojo extends AbstractMojo
         try (CloseableHttpResponse response = this.httpclient.execute(httpGet)) {
             if (response.getCode() == 200) {
                 return new JSONObject(new JSONTokener(response.getEntity().getContent()));
+            } else if (response.getCode() == 404) {
+                getLog().warn("Package " + dependency.getArtifact() + " is not available on " + this.fastenApiUrl);
             } else {
                 getLog().warn("Unexpected code when resolving metadata for dependency " + dependency.getArtifact()
-                    + ": " + response.getCode());
-
-                return null;
+                    + " on " + this.fastenApiUrl + ": " + response.getCode());
             }
         }
+
+        return null;
     }
 
     private JSONObject getMetadataCallable(JSONArray input)
@@ -477,7 +494,7 @@ public class CheckMojo extends AbstractMojo
 
     private MavenExtendedRevisionJavaCallGraph downloadCallGraph(Artifact artifact, File outputFile) throws IOException
     {
-        if (this.httpclient == null) {
+        if (this.httpclient == null || StringUtils.isEmpty(this.fastenRcgUrl)) {
             // Offline mode
             return null;
         }
@@ -509,7 +526,9 @@ public class CheckMojo extends AbstractMojo
 
                 // Parse the json
                 try (InputStream stream = new FileInputStream(outputFile)) {
-                    return new MavenExtendedRevisionJavaCallGraph(artifact, stream, outputFile);
+                    boolean remote = isRemote(artifact.getVersion(), true);
+
+                    return new MavenExtendedRevisionJavaCallGraph(artifact, stream, outputFile, remote);
                 }
             } else {
                 getLog().warn("Unexpected code when downloading the artifact call graph: " + response.getCode());
@@ -525,16 +544,32 @@ public class CheckMojo extends AbstractMojo
         return buildCallGraph(artifact, artifact.getFile(), outputFile, product);
     }
 
+    private boolean isRemote(String version, boolean auto)
+    {
+        boolean remote;
+        if (this.metadataDownload == MetadataDownload.all) {
+            remote = true;
+        } else if (this.metadataDownload == MetadataDownload.auto) {
+            remote = version.endsWith("-SNAPSHOT");
+        } else {
+            remote = auto;
+        }
+
+        return remote;
+    }
+
     private MavenExtendedRevisionJavaCallGraph buildCallGraph(Artifact artifact, File file, File outputFile,
         String product) throws OPALException
     {
         PartialCallGraph input = new PartialCallGraph(new CallGraphConstructor(file, null, this.genAlgorithm));
 
+        boolean remote = isRemote(artifact.getVersion(), false);
+
         MavenExtendedRevisionJavaCallGraph cg = new MavenExtendedRevisionJavaCallGraph(artifact,
             ExtendedRevisionJavaCallGraph.extendedBuilder().graph(input.getGraph()).product(product)
                 .version(artifact.getVersion()).timestamp(0).cgGenerator("").forge("")
                 .classHierarchy(input.getClassHierarchy()).nodeCount(input.getNodeCount()),
-            outputFile);
+            outputFile, remote);
 
         // Remember the call graph in a file
 

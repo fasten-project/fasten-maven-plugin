@@ -51,15 +51,16 @@ public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCall
      * @param artifact the {@link Maven} artifact
      * @param builder builder for {@link ExtendedRevisionJavaCallGraph}
      * @param graphFile the file in which the graph was serialized
+     * @param remote true if the call graph might contain remote metadata
      */
     public MavenExtendedRevisionJavaCallGraph(Artifact artifact,
-        ExtendedBuilder<EnumMap<JavaScope, Map<String, JavaType>>> builder, File graphFile)
+        ExtendedBuilder<EnumMap<JavaScope, Map<String, JavaType>>> builder, File graphFile, boolean remote)
     {
         super(builder);
 
         this.artifact = artifact;
-        this.remote = false;
         this.graphFile = graphFile;
+        this.remote = remote;
     }
 
     /**
@@ -68,14 +69,15 @@ public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCall
      * @param artifact the {@link Maven} artifact
      * @param content the json content to parse
      * @param graphFile the file in which the graph was serialized
+     * @param remote true if the call graph might contain remote metadata
      */
-    public MavenExtendedRevisionJavaCallGraph(Artifact artifact, InputStream content, File graphFile)
+    public MavenExtendedRevisionJavaCallGraph(Artifact artifact, InputStream content, File graphFile, boolean remote)
     {
         super(new JSONObject(new JSONTokener(content)));
 
         this.artifact = artifact;
-        this.remote = true;
         this.graphFile = graphFile;
+        this.remote = remote;
     }
 
     /**
@@ -87,7 +89,7 @@ public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCall
     }
 
     /**
-     * @return true if it's a remote graph
+     * @return true if the call graph might contain remote metadata
      */
     public boolean isRemote()
     {

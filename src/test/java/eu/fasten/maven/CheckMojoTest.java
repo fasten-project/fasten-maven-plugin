@@ -38,7 +38,6 @@ import java.util.zip.ZipEntry;
 import org.apache.commons.collections4.SetUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.reflect.FieldUtils;
-import org.apache.hc.core5.util.Asserts;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.DefaultArtifact;
 import org.apache.maven.execution.MavenSession;
@@ -54,8 +53,8 @@ import org.junit.jupiter.api.Test;
 import eu.fasten.core.data.JavaScope;
 import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
 import eu.fasten.maven.analyzer.RiskReport;
-import eu.fasten.maven.analyzer.SecurityRiskAnalyzer;
 import eu.fasten.maven.analyzer.RiskReport.Message;
+import eu.fasten.maven.analyzer.SecurityRiskAnalyzer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
