@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.collections4.SetUtils;
 
@@ -71,23 +70,24 @@ public class SecurityRiskAnalyzer extends AbstractRiskAnalyzer
                         // Make sure one of the affected methods is part of the stitched call graph
                         Set<StitchedGraphNode> nodes = vulnerableCallables(vulnerability, context);
 
-                        String message;
-                        if (CollectionUtils.isNotEmpty(nodes)) {
-                            StringBuilder builder = new StringBuilder(
-                                "The vulnerability {} affects dependency {} because of the following used callables:");
+                        if (nodes != null) {
+                            // TODO: report it but as a warning if no known method is affected ?
+                            if (!nodes.isEmpty()) {
+                                StringBuilder builder = new StringBuilder(
+                                    "The vulnerability {} affects dependency {} because of the following used callables:");
 
-                            for (StitchedGraphNode node : nodes) {
-                                builder.append('\n');
-                                builder.append("  * ");
-                                builder.append(getSignature(node.getLocalNode().getUri()));
+                                for (StitchedGraphNode node : nodes) {
+                                    builder.append('\n');
+                                    builder.append("  * ");
+                                    builder.append(getSignature(node.getLocalNode().getUri()));
+                                }
+
+                                report.error(builder.toString(), vulnerabilityId, dependency.getArtifact());
                             }
-
-                            message = builder.toString();
                         } else {
-                            message = "The vulnerability {} affects dependency {}";
+                            report.error("The vulnerability {} affects dependency {}", vulnerabilityId,
+                                dependency.getArtifact());
                         }
-
-                        report.error(message, vulnerabilityId, dependency.getArtifact());
                     }
                 }
             }
@@ -100,7 +100,12 @@ public class SecurityRiskAnalyzer extends AbstractRiskAnalyzer
     {
         List<String> uris = (List<String>) vulnerability.get(VULNERABILITIES_URIS);
 
-        Set<StitchedGraphNode> nodes = null;
+        if (uris == null) {
+            // The package does not contain any callable information
+            return null;
+        }
+
+        Set<StitchedGraphNode> nodes = new LinkedHashSet<>(uris.size());
         for (String uri : uris) {
             FastenURI fastenURI = FastenURI.create(uri);
 
@@ -111,9 +116,6 @@ public class SecurityRiskAnalyzer extends AbstractRiskAnalyzer
                 StitchedGraphNode node = context.getGraph().getNode(fastenURI, true);
 
                 if (node != null) {
-                    if (nodes == null) {
-                        nodes = new LinkedHashSet<>(uris.size());
-                    }
                     nodes.add(node);
                 }
             }
