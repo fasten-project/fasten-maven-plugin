@@ -549,8 +549,8 @@ public class CheckMojo extends AbstractMojo
         boolean remote;
         if (this.metadataDownload == MetadataDownload.all) {
             remote = true;
-        } else if (this.metadataDownload == MetadataDownload.auto) {
-            remote = version.endsWith("-SNAPSHOT");
+        } else if (this.metadataDownload == MetadataDownload.releases) {
+            remote = !version.endsWith("-SNAPSHOT");
         } else {
             remote = auto;
         }
