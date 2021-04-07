@@ -118,7 +118,7 @@ public class CheckMojo extends AbstractMojo
     @Parameter(defaultValue = "https://api.fasten-project.eu/mvn", property = "fastenRcgUrl")
     private String fastenRcgUrl = "https://api.fasten-project.eu/mvn";
 
-    @Parameter(defaultValue = "100", property = "fastenRcgUrl")
+    @Parameter(defaultValue = "100", property = "metadataBatch")
     private int metadataBatch = 100;
 
     @Parameter(defaultValue = "auto", property = "metadataDownload")
