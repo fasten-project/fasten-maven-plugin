@@ -110,7 +110,7 @@ public class CheckMojo extends AbstractMojo
     private boolean failOnRisk = true;
 
     @Parameter
-    private List<RiskAnalyzerConfiguration> configurations;
+    private List<RiskAnalyzerConfiguration> risks;
 
     @Parameter(defaultValue = "https://api.fasten-project.eu/api", property = "fastenApiUrl")
     private String fastenApiUrl = "https://api.fasten-project.eu/api";
@@ -219,26 +219,26 @@ public class CheckMojo extends AbstractMojo
     private List<RiskAnalyzer> getAnalyzers() throws MojoExecutionException
     {
         if (this.analyzersCache == null) {
-            if (this.configurations == null) {
+            if (this.risks == null) {
                 this.analyzersCache = Collections.emptyList();
             } else {
-                this.analyzersCache = new ArrayList<>(this.configurations.size());
+                this.analyzersCache = new ArrayList<>(this.risks.size());
 
-                for (RiskAnalyzerConfiguration configuration : this.configurations) {
+                for (RiskAnalyzerConfiguration riskConfiguration : this.risks) {
                     RiskAnalyzer analyzer;
                     try {
-                        analyzer = createAnalyzer(configuration.getType());
+                        analyzer = createAnalyzer(riskConfiguration.getType());
                     } catch (Exception e) {
                         throw new MojoExecutionException(
-                            "Failed to create an analyzer for type " + configuration.getType(), e);
+                            "Failed to create an analyzer for type " + riskConfiguration.getType(), e);
                     }
 
                     if (analyzer == null) {
                         throw new MojoExecutionException(
-                            "Could not find any analyzer for type " + configuration.getType());
+                            "Could not find any analyzer for type " + riskConfiguration.getType());
                     }
 
-                    analyzer.initialize(configuration);
+                    analyzer.initialize(riskConfiguration);
 
                     this.analyzersCache.add(analyzer);
                 }
@@ -313,8 +313,7 @@ public class CheckMojo extends AbstractMojo
         enrichDependencies(dependencies);
     }
 
-    private void enrichDependencies(Set<MavenResolvedCallGraph> dependencies)
-        throws MojoExecutionException, IOException
+    private void enrichDependencies(Set<MavenResolvedCallGraph> dependencies) throws MojoExecutionException, IOException
     {
         for (MavenResolvedCallGraph dependency : dependencies) {
             getLog().info("Requesting meta data for dependency " + dependency.getArtifact());

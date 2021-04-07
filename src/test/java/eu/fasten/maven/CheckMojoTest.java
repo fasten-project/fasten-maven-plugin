@@ -262,7 +262,7 @@ class CheckMojoTest
 
         RiskAnalyzerConfiguration configuration = new RiskAnalyzerConfiguration();
         configuration.setType("fasten.security");
-        FieldUtils.writeField(this.mojo, "configurations", Arrays.asList(configuration), true);
+        FieldUtils.writeField(this.mojo, "risks", Arrays.asList(configuration), true);
 
         this.mojo.execute();
 
@@ -313,7 +313,7 @@ class CheckMojoTest
 
         RiskAnalyzerConfiguration configuration = new RiskAnalyzerConfiguration();
         configuration.setType("fasten.binary");
-        FieldUtils.writeField(this.mojo, "configurations", Arrays.asList(configuration), true);
+        FieldUtils.writeField(this.mojo, "risks", Arrays.asList(configuration), true);
 
         this.mojo.execute();
 
