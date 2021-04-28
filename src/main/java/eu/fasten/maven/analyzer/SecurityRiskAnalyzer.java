@@ -53,10 +53,8 @@ public class SecurityRiskAnalyzer extends AbstractRiskAnalyzer
     }
 
     @Override
-    public RiskReport analyze(RiskContext context)
+    public void analyze(RiskContext context, RiskReport report)
     {
-        RiskReport report = new RiskReport(this);
-
         for (MavenResolvedCallGraph dependency : context.getGraph().getStitchedDependenciesRCGs()) {
             if (dependency.isRemote() && !isDependencyIgnored(dependency)) {
                 Map<String, Map<String, Object>> vulnerabilities = (Map) dependency.getMetadata().get(VULNERABILITIES);
@@ -79,7 +77,7 @@ public class SecurityRiskAnalyzer extends AbstractRiskAnalyzer
                                 for (StitchedGraphNode node : nodes) {
                                     builder.append('\n');
                                     builder.append("  * ");
-                                    builder.append(getSignature(node.getLocalNode().getUri()));
+                                    builder.append(RiskAnalyzerConfiguration.toSignature(node.getLocalNode().getUri()));
                                 }
 
                                 report.error(builder.toString(), vulnerabilityId, dependency.getArtifact());
@@ -92,8 +90,6 @@ public class SecurityRiskAnalyzer extends AbstractRiskAnalyzer
                 }
             }
         }
-
-        return report;
     }
 
     private Set<StitchedGraphNode> vulnerableCallables(Map<String, Object> vulnerability, RiskContext context)
@@ -110,7 +106,7 @@ public class SecurityRiskAnalyzer extends AbstractRiskAnalyzer
             FastenURI fastenURI = FastenURI.create(uri);
 
             // Check if the callable is ignored
-            String callableSignature = getSignature(fastenURI);
+            String callableSignature = RiskAnalyzerConfiguration.toSignature(fastenURI);
             if (!isCallableIgnored(callableSignature)) {
                 // Find the callable node and make sure it's part of the stiched call graph
                 StitchedGraphNode node = context.getGraph().getNode(fastenURI, true);

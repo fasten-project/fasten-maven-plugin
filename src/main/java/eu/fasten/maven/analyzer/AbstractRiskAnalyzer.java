@@ -20,7 +20,8 @@ package eu.fasten.maven.analyzer;
 import java.util.Collections;
 import java.util.Set;
 
-import eu.fasten.core.data.FastenURI;
+import org.apache.maven.plugin.MojoExecutionException;
+
 import eu.fasten.maven.MavenResolvedCallGraph;
 
 /**
@@ -56,32 +57,27 @@ public abstract class AbstractRiskAnalyzer implements RiskAnalyzer
         return Collections.emptySet();
     }
 
-    protected String getSignature(FastenURI uri)
+    @Override
+    public RiskReport analyze(RiskContext context) throws MojoExecutionException
     {
-        return uri.getRawNamespace() + "." + uri.getRawEntity();
+        RiskReport report = new RiskReport(this);
+
+        analyze(context, report);
+
+        return report;
     }
 
-    protected void reportError(FastenURI uri, String message, RiskReport report)
-    {
-        String signature = getSignature(uri);
+    protected abstract void analyze(RiskContext context, RiskReport report) throws MojoExecutionException;
 
-        // Check of the class is ignored
-        if (!isCallableIgnored(signature)) {
-            report.error(message, signature);
-        }
+    @Override
+    public boolean isCallableIgnored(String signature)
+    {
+        return getConfiguration().isCallableIgnored(signature);
     }
 
-    protected boolean isCallableIgnored(String signature)
+    @Override
+    public boolean isDependencyIgnored(MavenResolvedCallGraph dependency)
     {
-        // Check if the signature is covered by a configured ignore
-        return getConfiguration().getIgnoredCallables().stream().anyMatch(p -> p.matcher(signature).matches());
-    }
-
-    protected boolean isDependencyIgnored(MavenResolvedCallGraph dependency)
-    {
-        String id = dependency.getArtifact().getGroupId() + ':' + dependency.getArtifact().getArtifactId();
-
-        // Check if the dependency id is covered by a configured ignore
-        return getConfiguration().getIgnoredCallables().stream().anyMatch(p -> p.matcher(id).matches());
+        return getConfiguration().isDependencyIgnored(dependency);
     }
 }

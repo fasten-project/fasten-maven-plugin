@@ -19,6 +19,11 @@ package eu.fasten.maven.analyzer;
 
 import java.util.Set;
 
+import org.apache.maven.plugin.MojoExecutionException;
+
+import eu.fasten.maven.MavenResolvedCallGraph;
+import eu.fasten.maven.StitchedGraphNode;
+
 /**
  * An extension point to process the call graph and report high and low risks found in it.
  * 
@@ -48,6 +53,11 @@ public interface RiskAnalyzer
      * 
      * @param context information about the project and its dependencies like the stitched call graphs
      * @return a report of errors and warning hit while running the analyzer
+     * @throws MojoExecutionException when the analyzer fails to execute
      */
-    RiskReport analyze(RiskContext context);
+    RiskReport analyze(RiskContext context) throws MojoExecutionException;
+
+    boolean isCallableIgnored(String signature);
+
+    boolean isDependencyIgnored(MavenResolvedCallGraph dependency);
 }

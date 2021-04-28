@@ -15,18 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package eu.fasten.maven.analyzer;
+package eu.fasten.maven.analyzer.quality;
+
+import java.util.Map;
+
+import eu.fasten.maven.StitchedGraphNode;
+import eu.fasten.maven.analyzer.RiskContext;
+import eu.fasten.maven.analyzer.RiskReport;
 
 /**
- * Find license incompatibilities in the stiched graph.
- * 
  * @version $Id$
  */
-public class LicenseRiskAnalyzer extends AbstractRiskAnalyzer
+public interface QualityMetricAnalyzer
 {
-    @Override
-    public void analyze(RiskContext context, RiskReport report)
-    {
-        // TODO
-    }
+    void initialize(Object configuration);
+
+    void analyze(RiskContext context, StitchedGraphNode node, Map<String, Object> metrics, RiskReport report);
 }

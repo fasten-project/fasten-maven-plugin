@@ -15,18 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package eu.fasten.maven.analyzer;
+package eu.fasten.maven.analyzer.quality;
+
+import eu.fasten.maven.StitchedGraphNode;
+import eu.fasten.maven.analyzer.RiskContext;
+import eu.fasten.maven.analyzer.RiskReport;
 
 /**
- * Find license incompatibilities in the stiched graph.
- * 
  * @version $Id$
  */
-public class LicenseRiskAnalyzer extends AbstractRiskAnalyzer
+public class Parameter_countQualityMetricAnalyzer extends AbstractQualityMetricAnalyzer<Integer>
 {
     @Override
-    public void analyze(RiskContext context, RiskReport report)
+    protected String getMetric()
     {
-        // TODO
+        return "parameter_count";
+    }
+
+    @Override
+    protected void analyzeValue(RiskContext context, StitchedGraphNode node, Integer value, RiskReport report)
+    {
+        if (value > this.threshold) {
+            report.error(node,
+                "The number of parameters in the callable {} located in {} is greater than the maximum value {}.");
+        }
     }
 }

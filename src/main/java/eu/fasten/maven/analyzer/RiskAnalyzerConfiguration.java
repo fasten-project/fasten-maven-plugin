@@ -22,6 +22,10 @@ import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import eu.fasten.core.data.FastenURI;
+import eu.fasten.maven.MavenResolvedCallGraph;
+import eu.fasten.maven.StitchedGraphNode;
+
 /**
  * Configure the behavior of a {@link RiskAnalyzer}.
  * 
@@ -117,5 +121,24 @@ public class RiskAnalyzerConfiguration
     public void setProperties(RiskAnalyzerProperties properties)
     {
         this.properties = properties;
+    }
+
+    public static String toSignature(FastenURI uri)
+    {
+        return uri.getRawNamespace() + "." + uri.getRawEntity();
+    }
+
+    public boolean isCallableIgnored(String signature)
+    {
+        // Check if the signature is covered by a configured ignore
+        return getIgnoredCallables().stream().anyMatch(p -> p.matcher(signature).matches());
+    }
+
+    public boolean isDependencyIgnored(MavenResolvedCallGraph dependency)
+    {
+        String id = dependency.getArtifact().getGroupId() + ':' + dependency.getArtifact().getArtifactId();
+
+        // Check if the dependency id is covered by a configured ignore
+        return getIgnoredDependencies().stream().anyMatch(p -> p.matcher(id).matches());
     }
 }

@@ -34,21 +34,18 @@ public class BinaryRiskAnalyzer extends AbstractRiskAnalyzer
         SetUtils.hashSet("java.", "com.sun.", "sun.", "jdk.", "javax.", "jakarta.");
 
     @Override
-    public RiskReport analyze(RiskContext context)
+    public void analyze(RiskContext context, RiskReport report)
     {
-        RiskReport report = new RiskReport(this);
-
+        // Report broken calls (unresolved external calls)
         for (long nodeId : context.getGraph().getStitchedGraph().externalNodes()) {
             StitchedGraphNode node = context.getGraph().getNode(nodeId);
 
-            reportError(node.getLocalNode().getUri(), "The callable {} cannot be resolved.", report);
+            report.error(node.getLocalNode().getUri(), "The callable {} cannot be resolved.");
         }
-
-        return report;
     }
 
     @Override
-    protected boolean isCallableIgnored(String signature)
+    public boolean isCallableIgnored(String signature)
     {
         // Check if the class is a known standard Java class
         if (PROVIDED_PACKAGES.stream().anyMatch(signature::startsWith)) {

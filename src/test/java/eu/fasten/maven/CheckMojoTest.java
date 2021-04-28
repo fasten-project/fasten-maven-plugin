@@ -287,6 +287,12 @@ class CheckMojoTest
     }
 
     @Test
+    void testQuality() throws IOException, IllegalAccessException
+    {
+        // TODO
+    }
+
+    @Test
     void testBinary() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException
     {
         this.projectWorkDir = new File(this.testWorkDir, "A/");

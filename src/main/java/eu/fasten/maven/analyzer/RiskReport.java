@@ -23,6 +23,9 @@ import java.util.List;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.helpers.MessageFormatter;
 
+import eu.fasten.core.data.FastenURI;
+import eu.fasten.maven.StitchedGraphNode;
+
 /**
  * @version $Id$
  */
@@ -158,5 +161,36 @@ public class RiskReport
     public List<Message> getWarnings()
     {
         return this.warnings;
+    }
+
+    public void error(FastenURI uri, String message)
+    {
+        String signature = RiskAnalyzerConfiguration.toSignature(uri);
+
+        // Check of the class is ignored
+        if (!this.analyzer.isCallableIgnored(signature)) {
+            error(message, signature);
+        }
+    }
+
+    public boolean isIgnored(StitchedGraphNode node)
+    {
+        if (this.analyzer.isDependencyIgnored(node.getPackageRCG())) {
+            return true;
+        }
+
+        String callableSignature = RiskAnalyzerConfiguration.toSignature(node.getLocalNode().getUri());
+
+        return this.analyzer.isCallableIgnored(callableSignature);
+    }
+
+    public void error(StitchedGraphNode node, String message)
+    {
+        // Check of the node is ignored
+        if (!isIgnored(node)) {
+            String signature = RiskAnalyzerConfiguration.toSignature(node.getLocalNode().getUri());
+
+            error(message, signature, node.getPackageRCG().getArtifact());
+        }
     }
 }
