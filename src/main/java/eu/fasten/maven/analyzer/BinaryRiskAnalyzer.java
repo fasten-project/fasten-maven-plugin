@@ -21,7 +21,6 @@ import java.util.Set;
 
 import org.apache.commons.collections4.SetUtils;
 
-import eu.fasten.core.data.JavaScope;
 import eu.fasten.maven.StitchedGraphNode;
 
 /**
@@ -39,7 +38,9 @@ public class BinaryRiskAnalyzer extends AbstractRiskAnalyzer
     {
         RiskReport report = new RiskReport(this);
 
-        for (StitchedGraphNode node : context.getGraph().getStitchedNodes(JavaScope.externalTypes)) {
+        for (long nodeId : context.getGraph().getStitchedGraph().externalNodes()) {
+            StitchedGraphNode node = context.getGraph().getNode(nodeId);
+
             reportError(node.getLocalNode().getUri(), "The callable {} cannot be resolved.", report);
         }
 

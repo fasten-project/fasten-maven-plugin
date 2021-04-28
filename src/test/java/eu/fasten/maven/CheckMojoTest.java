@@ -58,6 +58,7 @@ import eu.fasten.maven.analyzer.SecurityRiskAnalyzer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -239,7 +240,7 @@ class CheckMojoTest
     }
 
     @Test
-    void testSecurity() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException
+    void testSecurity() throws IOException, IllegalAccessException
     {
         this.projectWorkDir = new File(this.testWorkDir, "PROJECT/");
         this.projectWorkDirTarget = new File(this.projectWorkDir, "target/");
@@ -249,7 +250,6 @@ class CheckMojoTest
             new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/security/"));
 
         FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
-        FieldUtils.writeField(this.mojo, "failOnRisk", false, true);
 
         Build build = new Build();
         build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
@@ -264,7 +264,7 @@ class CheckMojoTest
         configuration.setType("fasten.security");
         FieldUtils.writeField(this.mojo, "risks", Arrays.asList(configuration), true);
 
-        this.mojo.execute();
+        assertThrows(MojoFailureException.class, () -> this.mojo.execute());
 
         List<RiskReport> reports = this.mojo.reports;
 
@@ -315,7 +315,7 @@ class CheckMojoTest
         configuration.setType("fasten.binary");
         FieldUtils.writeField(this.mojo, "risks", Arrays.asList(configuration), true);
 
-        this.mojo.execute();
+        assertThrows(MojoFailureException.class, () -> this.mojo.execute());
 
         assertEquals(1, this.mojo.reports.size());
 

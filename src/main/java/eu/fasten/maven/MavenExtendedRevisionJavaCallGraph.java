@@ -17,7 +17,6 @@
  */
 package eu.fasten.maven;
 
-import java.io.File;
 import java.io.InputStream;
 import java.util.EnumMap;
 import java.util.Map;
@@ -43,23 +42,19 @@ public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCall
 
     private final boolean remote;
 
-    private final File graphFile;
-
     /**
      * Creates {@link ExtendedRevisionJavaCallGraph} with the given builder.
      *
      * @param artifact the {@link Maven} artifact
      * @param builder builder for {@link ExtendedRevisionJavaCallGraph}
-     * @param graphFile the file in which the graph was serialized
      * @param remote true if the call graph might contain remote metadata
      */
     public MavenExtendedRevisionJavaCallGraph(Artifact artifact,
-        ExtendedBuilder<EnumMap<JavaScope, Map<String, JavaType>>> builder, File graphFile, boolean remote)
+        ExtendedBuilder<EnumMap<JavaScope, Map<String, JavaType>>> builder, boolean remote)
     {
         super(builder);
 
         this.artifact = artifact;
-        this.graphFile = graphFile;
         this.remote = remote;
     }
 
@@ -68,15 +63,13 @@ public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCall
      * 
      * @param artifact the {@link Maven} artifact
      * @param content the json content to parse
-     * @param graphFile the file in which the graph was serialized
      * @param remote true if the call graph might contain remote metadata
      */
-    public MavenExtendedRevisionJavaCallGraph(Artifact artifact, InputStream content, File graphFile, boolean remote)
+    public MavenExtendedRevisionJavaCallGraph(Artifact artifact, InputStream content, boolean remote)
     {
         super(new JSONObject(new JSONTokener(content)));
 
         this.artifact = artifact;
-        this.graphFile = graphFile;
         this.remote = remote;
     }
 
@@ -94,13 +87,5 @@ public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCall
     public boolean isRemote()
     {
         return this.remote;
-    }
-
-    /**
-     * @return the file in which the graph was serialized
-     */
-    public File getGraphFile()
-    {
-        return this.graphFile;
     }
 }

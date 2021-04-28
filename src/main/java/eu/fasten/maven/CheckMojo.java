@@ -17,13 +17,10 @@
  */
 package eu.fasten.maven;
 
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStreamWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -124,6 +121,9 @@ public class CheckMojo extends AbstractMojo
     @Parameter(defaultValue = "auto", property = "metadataDownload")
     private MetadataDownload metadataDownload = MetadataDownload.auto;
 
+    @Parameter(defaultValue = "true", property = "serialize")
+    private boolean serialize = true;
+
     private List<RiskAnalyzer> analyzersCache;
 
     private Set<String> packageMetadataNames;
@@ -193,9 +193,7 @@ public class CheckMojo extends AbstractMojo
         // Produce the resolved graph for each dependency
         List<MavenResolvedCallGraph> dependenciesRCGs = new ArrayList<>(dependenciesCGs.size());
         for (MavenExtendedRevisionJavaCallGraph dependencyCG : dependenciesCGs) {
-            File outputFile =
-                new File(dependencyCG.getGraphFile().getParentFile(), dependencyCG.getGraphFile().getName().substring(0,
-                    dependencyCG.getGraphFile().getName().length() - ".json".length()) + ".resolved.json");
+            File outputFile = toOutputFile(dependencyCG.getArtifact(), ".resolved.json");
 
             dependenciesRCGs.add(resolveCG(resolver, dependencyCG, outputFile));
         }
@@ -214,6 +212,12 @@ public class CheckMojo extends AbstractMojo
 
         // Analyze the stitched call graph
         analyze();
+    }
+
+    private File toOutputFile(Artifact artifact, String extension)
+    {
+        return new File(this.outputDirectory, artifact.getGroupId() + '/' + artifact.getArtifactId() + '/'
+            + artifact.getArtifactId() + '-' + artifact.getVersion() + extension);
     }
 
     private List<RiskAnalyzer> getAnalyzers() throws MojoExecutionException
@@ -331,6 +335,10 @@ public class CheckMojo extends AbstractMojo
                         }
                     }
                 }
+            }
+
+            if (this.serialize) {
+                writeRcgJsonString(dependency.getGraph(), toOutputFile(dependency.getArtifact(), ".enriched.json"));
             }
         }
     }
@@ -452,10 +460,12 @@ public class CheckMojo extends AbstractMojo
 
         ExtendedRevisionJavaCallGraph mergedCG = merger.mergeWithCHA(cg);
 
-        try {
-            writeRcgJsonString(mergedCG, mergeCallGraphFile);
-        } catch (Exception e) {
-            throw new MojoExecutionException("Failed to serialize the merged call graph", e);
+        if (this.serialize) {
+            try {
+                writeRcgJsonString(mergedCG, mergeCallGraphFile);
+            } catch (Exception e) {
+                throw new MojoExecutionException("Failed to serialize the merged call graph", e);
+            }
         }
 
         return new MavenResolvedCallGraph(cg.getArtifact(), cg.isRemote(), mergedCG);
@@ -467,8 +477,7 @@ public class CheckMojo extends AbstractMojo
             throw new IOException("Unsupported type ([" + artifact.getType() + "]) for artifact [" + artifact + "]");
         }
 
-        File outputFile = new File(this.outputDirectory,
-            artifact.getGroupId() + '/' + artifact.getArtifactId() + '/' + artifact.getFile().getName() + ".json");
+        File outputFile = toOutputFile(artifact, ".json");
 
         MavenExtendedRevisionJavaCallGraph callGraph = null;
         try {
@@ -527,7 +536,7 @@ public class CheckMojo extends AbstractMojo
                 try (InputStream stream = new FileInputStream(outputFile)) {
                     boolean remote = isRemote(artifact.getVersion(), true);
 
-                    return new MavenExtendedRevisionJavaCallGraph(artifact, stream, outputFile, remote);
+                    return new MavenExtendedRevisionJavaCallGraph(artifact, stream, remote);
                 }
             } else {
                 getLog().warn("Unexpected code when downloading the artifact call graph: " + response.getCode());
@@ -568,18 +577,20 @@ public class CheckMojo extends AbstractMojo
             ExtendedRevisionJavaCallGraph.extendedBuilder().graph(input.getGraph()).product(product)
                 .version(artifact.getVersion()).timestamp(0).cgGenerator("").forge("")
                 .classHierarchy(input.getClassHierarchy()).nodeCount(input.getNodeCount()),
-            outputFile, remote);
+            remote);
 
         // Remember the call graph in a file
 
         // Make sure the parent folder exist
         outputFile.getParentFile().mkdirs();
 
-        try {
-            writeRcgJsonString(cg, outputFile);
-        } catch (Exception e) {
-            getLog().warn("Failed to serialize the call graph for artifact [" + artifact + "]: "
-                + ExceptionUtils.getRootCauseMessage(e));
+        if (this.serialize) {
+            try {
+                writeRcgJsonString(cg, outputFile);
+            } catch (Exception e) {
+                getLog().warn("Failed to serialize the call graph for artifact [" + artifact + "]: "
+                    + ExceptionUtils.getRootCauseMessage(e));
+            }
         }
 
         return cg;
@@ -587,8 +598,6 @@ public class CheckMojo extends AbstractMojo
 
     private void writeRcgJsonString(ExtendedRevisionJavaCallGraph rcg, File outputFile) throws IOException
     {
-        var out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outputFile), StandardCharsets.UTF_8));
-        out.write(JSONUtils.toJSONString(rcg));
-        out.flush();
+        FileUtils.write(outputFile, JSONUtils.toJSONString(rcg), StandardCharsets.UTF_8);
     }
 }

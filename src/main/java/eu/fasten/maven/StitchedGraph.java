@@ -28,13 +28,14 @@ import org.apache.commons.collections4.iterators.IteratorChain;
 import org.apache.commons.collections4.iterators.IteratorIterable;
 import org.jgrapht.traverse.DepthFirstIterator;
 
-import eu.fasten.core.data.ArrayImmutableDirectedGraph;
 import eu.fasten.core.data.DirectedGraph;
 import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
+import eu.fasten.core.data.FastenDefaultDirectedGraph;
 import eu.fasten.core.data.FastenURI;
 import eu.fasten.core.data.JavaNode;
 import eu.fasten.core.data.JavaScope;
 import eu.fasten.core.data.JavaType;
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.IntIntPair;
 import it.unimi.dsi.fastutil.longs.LongLongPair;
 import it.unimi.dsi.fastutil.longs.LongSet;
@@ -52,9 +53,9 @@ public class StitchedGraph
 
     private final Set<MavenResolvedCallGraph> stitchedDependenciesRCGs;
 
-    private final DirectedGraph fullGraph;
+    private final FastenDefaultDirectedGraph fullGraph;
 
-    private final DirectedGraph stitchedGraph;
+    private final FastenDefaultDirectedGraph stitchedGraph;
 
     private Map<Long, StitchedGraphNode> graphIdToNode = new HashMap<>();
 
@@ -72,39 +73,33 @@ public class StitchedGraph
 
         // Build full graph
 
-        ArrayImmutableDirectedGraph.Builder fullBuilder = new ArrayImmutableDirectedGraph.Builder();
+        this.fullGraph = new FastenDefaultDirectedGraph();
 
         // Add internal calls
 
-        long offset = append(fullBuilder, projectRCG, -1);
+        long offset = append(this.fullGraph, projectRCG, -1);
 
         for (MavenResolvedCallGraph dependencyRCG : this.fullDependenciesRCGs) {
-            offset = append(fullBuilder, dependencyRCG, offset);
+            offset = append(this.fullGraph, dependencyRCG, offset);
         }
 
-        this.fullGraph = fullBuilder.build();
-
-        // Build stitched graph
-
-        ArrayImmutableDirectedGraph.Builder stitchedBuilder = new ArrayImmutableDirectedGraph.Builder();
-
-        Set<Long> handledNodes = new HashSet<>();
-
-        LongSet externalCalls = this.fullGraph.externalNodes();
-
+        // Get main project calls
         IteratorChain<Long> projectCalls = new IteratorChain<>(
             projectRCG.getGraph().getGraph().getInternalCalls().keySet().stream().map(link -> (long) link.leftInt())
                 .iterator(),
             projectRCG.getGraph().getGraph().getExternalCalls().keySet().stream()
                 .map(link -> this.globalIdToGraphId.get((long) link.leftInt())).iterator());
 
-        appendNodeAndSuccessors(new IteratorIterable<>(projectCalls), stitchedBuilder, externalCalls, handledNodes);
+        // Build stitched graph
 
-        this.stitchedGraph = stitchedBuilder.build();
+        this.stitchedGraph = new FastenDefaultDirectedGraph();
+
+        appendNodeAndSuccessors(new IteratorIterable<>(projectCalls), this.stitchedGraph,
+            this.fullGraph.externalNodes());
     }
 
-    private void appendNodeAndSuccessors(Iterable<Long> startVertices,
-        ArrayImmutableDirectedGraph.Builder stitchedBuilder, LongSet externalCalls, Set<Long> addedNodes)
+    private void appendNodeAndSuccessors(Iterable<Long> startVertices, FastenDefaultDirectedGraph stitchedGraph,
+        LongSet externalCalls)
     {
         DepthFirstIterator<Long, LongLongPair> iterator = new DepthFirstIterator<>(this.fullGraph, startVertices);
 
@@ -113,35 +108,29 @@ public class StitchedGraph
 
             this.stitchedDependenciesRCGs.add(getNode(edge).getPackageRCG());
 
-            if (!addedNodes.contains(edge)) {
-                addNode(edge, stitchedBuilder, externalCalls);
-                addedNodes.add(edge);
-            }
+            addNode(edge, stitchedGraph, externalCalls);
 
             for (Long successor : this.fullGraph.successors(edge)) {
-                if (!addedNodes.contains(successor)) {
-                    addNode(successor, stitchedBuilder, externalCalls);
-                    addedNodes.add(successor);
-                }
+                addNode(successor, stitchedGraph, externalCalls);
 
-                stitchedBuilder.addArc(edge, successor);
+                stitchedGraph.addEdge(edge, successor);
             }
         }
     }
 
-    private void addNode(long node, ArrayImmutableDirectedGraph.Builder stitchedBuilder, LongSet externalCalls)
+    private void addNode(long node, FastenDefaultDirectedGraph stitchedGraph, LongSet externalCalls)
     {
         if (externalCalls.contains(node)) {
-            stitchedBuilder.addExternalNode(node);
+            stitchedGraph.addExternalNode(node);
         } else {
-            stitchedBuilder.addInternalNode(node);
+            stitchedGraph.addInternalNode(node);
         }
     }
 
     /**
      * @return the full graph
      */
-    public DirectedGraph getFullGraph()
+    public FastenDefaultDirectedGraph getFullGraph()
     {
         return this.fullGraph;
     }
@@ -149,7 +138,7 @@ public class StitchedGraph
     /**
      * @return the stitched graph
      */
-    public DirectedGraph getStitchedGraph()
+    public FastenDefaultDirectedGraph getStitchedGraph()
     {
         return this.stitchedGraph;
     }
@@ -216,18 +205,18 @@ public class StitchedGraph
         return this.stitchedDependenciesRCGs;
     }
 
-    private long append(ArrayImmutableDirectedGraph.Builder builder, MavenResolvedCallGraph rcg, long offset)
+    private long append(FastenDefaultDirectedGraph graph, MavenResolvedCallGraph rcg, long offset)
     {
         long biggest = offset;
 
-        // Add internal nodes
-        biggest = Math.max(biggest, addMethods(JavaScope.internalTypes, rcg, offset, builder));
-        biggest = Math.max(biggest, addMethods(JavaScope.resolvedTypes, rcg, offset, builder));
-        biggest = Math.max(biggest, addMethods(JavaScope.externalTypes, rcg, offset, builder));
+        // Add nodes
+        biggest = Math.max(biggest, addMethods(JavaScope.internalTypes, rcg, offset, graph));
+        biggest = Math.max(biggest, addMethods(JavaScope.resolvedTypes, rcg, offset, graph));
+        biggest = Math.max(biggest, addMethods(JavaScope.externalTypes, rcg, offset, graph));
 
         // Arcs
         for (final IntIntPair link : rcg.getGraph().getGraph().getInternalCalls().keySet()) {
-            builder.addArc(toGraphId(offset, link.leftInt()), toGraphId(offset, link.rightInt()));
+            graph.addEdge(toGraphId(offset, link.leftInt()), toGraphId(offset, link.rightInt()));
         }
         for (final IntIntPair link : rcg.getGraph().getGraph().getResolvedCalls().keySet()) {
             // FIXME: Workaround a bug in fasten-core which sometimes duplicate the local calls as resolved
@@ -237,7 +226,7 @@ public class StitchedGraph
                 continue;
             }
 
-            builder.addArc(toGraphId(offset, link.leftInt()), graphIdRight);
+            graph.addEdge(toGraphId(offset, link.leftInt()), graphIdRight);
         }
         for (final IntIntPair link : rcg.getGraph().getGraph().getExternalCalls().keySet()) {
             // Skip external calls which are duplicated in the resolved calls
@@ -246,23 +235,22 @@ public class StitchedGraph
                 continue;
             }
 
-            builder.addArc(toGraphId(offset, link.leftInt()), graphIdRight);
+            graph.addEdge(toGraphId(offset, link.leftInt()), graphIdRight);
         }
 
         return biggest;
     }
 
-    private long addMethods(JavaScope scope, MavenResolvedCallGraph rcg, long offset,
-        ArrayImmutableDirectedGraph.Builder builder)
+    private long addMethods(JavaScope scope, MavenResolvedCallGraph rcg, long offset, FastenDefaultDirectedGraph graph)
     {
         Map<String, JavaType> types = rcg.getGraph().getClassHierarchy().get(scope);
 
         long biggest = offset;
 
         for (Map.Entry<String, JavaType> aClass : types.entrySet()) {
-            for (Map.Entry<Integer, JavaNode> methodEntry : aClass.getValue().getMethods().entrySet()) {
+            for (Int2ObjectMap.Entry<JavaNode> methodEntry : aClass.getValue().getMethods().int2ObjectEntrySet()) {
                 // Calculate global version of the node id
-                long globalId = toGlobalId(offset, methodEntry.getKey());
+                long globalId = toGlobalId(offset, methodEntry.getIntKey());
 
                 // Increment next id offset
                 biggest = Math.max(biggest, globalId);
@@ -274,7 +262,7 @@ public class StitchedGraph
                     graphId = getGraphId(rcg.getGraph().product, globalId, methodEntry.getValue());
 
                     // Always add internal nodes (they are the reference)
-                    addNode(graphId, scope, methodEntry.getValue(), rcg, false, builder);
+                    addNode(graphId, scope, methodEntry.getValue(), rcg, false, graph);
                 } else {
                     if (scope == JavaScope.externalTypes) {
                         // Check if there is a resolved node matching this external node signature
@@ -282,7 +270,7 @@ public class StitchedGraph
                             graphId = globalId;
 
                             // Always add external nodes
-                            addNode(graphId, scope, methodEntry.getValue(), rcg, true, builder);
+                            addNode(graphId, scope, methodEntry.getValue(), rcg, true, graph);
                         } else {
                             // Forget external nodes which have been resolved
                             graphId = -1;
@@ -300,7 +288,7 @@ public class StitchedGraph
 
                             // Add resolved node only if the internal node is not already there
                             if (graphId == globalId) {
-                                addNode(graphId, scope, methodEntry.getValue(), rcg, false, builder);
+                                addNode(graphId, scope, methodEntry.getValue(), rcg, false, graph);
                             }
                         }
                     }
@@ -325,17 +313,15 @@ public class StitchedGraph
     }
 
     private void addNode(long graphId, JavaScope scope, JavaNode node, MavenResolvedCallGraph rcg, boolean external,
-        ArrayImmutableDirectedGraph.Builder builder)
+        FastenDefaultDirectedGraph graph)
     {
-        if (!this.graphIdToNode.containsKey(graphId)) {
-            if (external) {
-                builder.addExternalNode(graphId);
-            } else {
-                builder.addInternalNode(graphId);
-            }
-
-            this.localURIToGlobalId.computeIfAbsent(node.getUri(), k -> new HashSet<Long>()).add(graphId);
+        if (external) {
+            graph.addExternalNode(graphId);
+        } else {
+            graph.addInternalNode(graphId);
         }
+
+        this.localURIToGlobalId.computeIfAbsent(node.getUri(), k -> new HashSet<Long>()).add(graphId);
 
         this.graphIdToNode.put(graphId, new StitchedGraphNode(graphId, scope, node, rcg));
     }
@@ -367,7 +353,7 @@ public class StitchedGraph
 
     private FastenURI toLocalFastenURI(FastenURI fullFastenURI)
     {
-        return FastenURI.createSchemeless(null, null,
-            null, fullFastenURI.getRawNamespace(), fullFastenURI.getRawEntity());
+        return FastenURI.createSchemeless(null, null, null, fullFastenURI.getRawNamespace(),
+            fullFastenURI.getRawEntity());
     }
 }
