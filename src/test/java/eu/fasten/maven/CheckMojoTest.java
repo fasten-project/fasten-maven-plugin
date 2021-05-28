@@ -40,6 +40,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.DefaultArtifact;
+import org.apache.maven.artifact.repository.ArtifactRepository;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.Build;
 import org.apache.maven.model.Model;
@@ -70,6 +71,8 @@ import static org.mockito.Mockito.when;
  */
 class CheckMojoTest
 {
+    private static final String MAVEN_CENTRAL = "https://repo1.maven.org/maven2/";
+
     private static final File A_FOLDER = new File("target/test-classes/eu/fasten/maven/a/");
 
     private static final File B_CLASSFILE = new File("target/test-classes/eu/fasten/maven/b/B.class");
@@ -119,7 +122,7 @@ class CheckMojoTest
         this.project.setModel(model);
         FieldUtils.writeField(this.mojo, "project", this.project, true);
 
-        this.project.setArtifact(artifact("pgroupid", "partifactid", "1.0-SNAPSHOT", null));
+        this.project.setArtifact(artifact("pgroupid", "partifactid", "1.0-SNAPSHOT", null, null));
 
         when(session.isOffline()).thenReturn(false);
         FieldUtils.writeField(this.mojo, "session", this.session, true);
@@ -140,10 +143,17 @@ class CheckMojoTest
         }
     }
 
-    private Artifact artifact(String groupId, String artifactId, String version, File file)
+    private Artifact artifact(String groupId, String artifactId, String version, File file, String repositoryURL)
     {
         DefaultArtifact artifact = new DefaultArtifact(groupId, artifactId, version, null, "jar", "", null);
         artifact.setFile(file);
+
+        if (repositoryURL != null) {
+            ArtifactRepository repository = mock(ArtifactRepository.class);
+            when(repository.getUrl()).thenReturn(repositoryURL);
+
+            artifact.setRepository(repository);
+        }
 
         return artifact;
     }
@@ -169,8 +179,8 @@ class CheckMojoTest
         this.project.setBuild(build);
 
         Set<Artifact> artifacts = new LinkedHashSet<>();
-        artifacts.add(artifact("b", "b", "1.0", dependencyBDir));
-        artifacts.add(artifact("c", "c", "1.0", dependencyCDir));
+        artifacts.add(artifact("b", "b", "1.0", dependencyBDir, null));
+        artifacts.add(artifact("c", "c", "1.0", dependencyCDir, null));
         this.project.setArtifacts(artifacts);
 
         this.mojo.execute();
@@ -222,7 +232,7 @@ class CheckMojoTest
         this.project.setBuild(build);
 
         Set<Artifact> artifacts = new LinkedHashSet<>();
-        artifacts.add(artifact("org.ow2.asm", "asm", "7.0", new File("asm.jar")));
+        artifacts.add(artifact("org.ow2.asm", "asm", "7.3", new File("asm.jar"), MAVEN_CENTRAL));
         this.project.setArtifacts(artifacts);
 
         this.mojo.execute();
@@ -257,7 +267,8 @@ class CheckMojoTest
 
         Set<Artifact> artifacts = new LinkedHashSet<>();
         artifacts.add(artifact("org.jboss.resteasy", "resteasy-jaxrs", "3.0.23.Final", new File(
-            "/home/tmortagne/.m2/repository/org/jboss/resteasy/resteasy-jaxrs/3.0.23.Final/resteasy-jaxrs-3.0.23.Final.jar")));
+            "/home/tmortagne/.m2/repository/org/jboss/resteasy/resteasy-jaxrs/3.0.23.Final/resteasy-jaxrs-3.0.23.Final.jar"),
+            MAVEN_CENTRAL));
         this.project.setArtifacts(artifacts);
 
         RiskAnalyzerConfiguration configuration = new RiskAnalyzerConfiguration();
@@ -313,8 +324,8 @@ class CheckMojoTest
         this.project.setBuild(build);
 
         Set<Artifact> artifacts = new LinkedHashSet<>();
-        artifacts.add(artifact("b", "b", "1.0", dependencyBDir));
-        artifacts.add(artifact("c", "c", "1.0", dependencyCDir));
+        artifacts.add(artifact("b", "b", "1.0", dependencyBDir, null));
+        artifacts.add(artifact("c", "c", "1.0", dependencyCDir, null));
         this.project.setArtifacts(artifacts);
 
         RiskAnalyzerConfiguration configuration = new RiskAnalyzerConfiguration();

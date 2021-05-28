@@ -22,6 +22,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -111,9 +112,6 @@ public class CheckMojo extends AbstractMojo
 
     @Parameter(defaultValue = "https://api.fasten-project.eu/api", property = "fastenApiUrl")
     private String fastenApiUrl = "https://api.fasten-project.eu/api";
-
-    @Parameter(defaultValue = "https://api.fasten-project.eu/mvn", property = "fastenRcgUrl")
-    private String fastenRcgUrl = "https://api.fasten-project.eu/mvn";
 
     @Parameter(defaultValue = "100", property = "metadataBatch")
     private int metadataBatch = 100;
@@ -500,32 +498,29 @@ public class CheckMojo extends AbstractMojo
         return callGraph;
     }
 
-    private MavenExtendedRevisionJavaCallGraph downloadCallGraph(Artifact artifact, File outputFile) throws IOException
+    private MavenExtendedRevisionJavaCallGraph downloadCallGraph(Artifact artifact, File outputFile)
+        throws IOException, URISyntaxException
     {
-        if (this.httpclient == null || StringUtils.isEmpty(this.fastenRcgUrl)) {
+        if (this.httpclient == null || StringUtils.isEmpty(this.fastenApiUrl)) {
             // Offline mode
             return null;
         }
-        StringBuilder builder = new StringBuilder(this.fastenRcgUrl);
-        builder.append('/');
-        builder.append(artifact.getArtifactId().charAt(0));
-        builder.append('/');
-        builder.append(artifact.getArtifactId());
-        builder.append('/');
-        builder.append(artifact.getArtifactId());
-        builder.append('_');
-        builder.append(artifact.getGroupId());
-        builder.append('_');
-        builder.append(artifact.getVersion());
-        builder.append(".json");
+
+        URIBuilder builder = new URIBuilder(this.fastenApiUrl + URLEncodedUtils.formatSegments("mvn", "packages",
+            artifact.getGroupId() + ':' + artifact.getArtifactId(), artifact.getVersion(), "rcg"));
 
         // TODO: add qualifier and type support
 
-        String url = builder.toString();
+        // Indicate where to find the artifact if it's not available on the FASTEN server yet
+        if (artifact.getRepository() != null) {
+            builder.addParameter("artifactRepository", artifact.getRepository().getUrl());
+        }
 
-        getLog().info("Downloading call graph for artifact " + artifact + " on " + url);
+        URI uri = builder.build();
 
-        HttpGet httpGet = new HttpGet(url);
+        getLog().info("Downloading call graph for artifact " + artifact + " on " + uri);
+
+        HttpGet httpGet = new HttpGet(uri);
 
         try (CloseableHttpResponse response = this.httpclient.execute(httpGet)) {
             if (response.getCode() == 200) {
@@ -538,8 +533,10 @@ public class CheckMojo extends AbstractMojo
 
                     return new MavenExtendedRevisionJavaCallGraph(artifact, stream, remote);
                 }
+            } else if (response.getCode() == 202) {
+                getLog().warn("The artifact is not available yet on the server yet but an analysis was requested");
             } else {
-                getLog().warn("Unexpected code when downloading the artifact call graph: " + response.getCode());
+                getLog().warn("Unexpected error code when downloading the artifact call graph: " + response.getCode());
             }
         }
 
