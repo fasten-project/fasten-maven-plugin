@@ -17,12 +17,12 @@
  */
 package eu.fasten.maven.analyzer;
 
+import java.util.Collection;
 import java.util.Set;
 
 import org.apache.maven.plugin.MojoExecutionException;
 
 import eu.fasten.maven.MavenResolvedCallGraph;
-import eu.fasten.maven.StitchedGraphNode;
 
 /**
  * An extension point to process the call graph and report high and low risks found in it.
@@ -40,6 +40,11 @@ public interface RiskAnalyzer
      * @return the names of the metadata to retrieve when enriching the stitched call graph packages from remote server
      */
     Set<String> getPackageMetadatas();
+
+    /**
+     * @return extra metadata provided by Maven
+     */
+    Collection<String> getMavenExtras();
 
     /**
      * Initialize the analyzer with configuration provided in the project descriptor.

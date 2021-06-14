@@ -46,15 +46,23 @@ import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.net.URLEncodedUtils;
 import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.repository.ArtifactRepository;
 import org.apache.maven.execution.MavenSession;
+import org.apache.maven.model.building.ModelBuildingRequest;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.plugins.annotations.Component;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
+import org.apache.maven.project.DefaultProjectBuildingRequest;
 import org.apache.maven.project.MavenProject;
+import org.apache.maven.project.ProjectBuilder;
+import org.apache.maven.project.ProjectBuildingException;
+import org.apache.maven.project.ProjectBuildingRequest;
+import org.apache.maven.project.ProjectBuildingResult;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
@@ -92,11 +100,17 @@ public class CheckMojo extends AbstractMojo
         all
     }
 
+    @Component
+    private ProjectBuilder projectBuilder;
+
     @Parameter(defaultValue = "${session}", required = true, readonly = true)
     private MavenSession session;
 
     @Parameter(defaultValue = "${project}", required = true, readonly = true)
     private MavenProject project;
+
+    @Parameter(property = "localRepository")
+    private ArtifactRepository localRepository;
 
     @Parameter(defaultValue = "target/call-graphs/")
     private File outputDirectory;
@@ -125,6 +139,8 @@ public class CheckMojo extends AbstractMojo
     private List<RiskAnalyzer> analyzersCache;
 
     private Set<String> packageMetadataNames;
+
+    private Set<String> mavenExtras;
 
     private CloseableHttpClient httpclient;
 
@@ -338,6 +354,33 @@ public class CheckMojo extends AbstractMojo
             if (this.serialize) {
                 writeRcgJsonString(dependency.getGraph(), toOutputFile(dependency.getArtifact(), ".enriched.json"));
             }
+
+            // Resolve extra information
+            if (getMavenExtras().contains("licenses")) {
+                MavenProject artifactProject = getMavenProject(dependency.getArtifact());
+
+                dependency.setLicenses(artifactProject.getLicenses());
+            }
+        }
+    }
+
+    public MavenProject getMavenProject(Artifact artifact) throws MojoExecutionException
+    {
+        try {
+            ProjectBuildingRequest request = new DefaultProjectBuildingRequest(this.session.getProjectBuildingRequest())
+                // We don't want to execute any plugin here
+                .setProcessPlugins(false)
+                // The local repository
+                .setLocalRepository(this.localRepository)
+                // It's not this plugin job to validate this pom.xml
+                .setValidationLevel(ModelBuildingRequest.VALIDATION_LEVEL_MINIMAL)
+                // Use the repositories configured for the built project instead of the default Maven ones
+                .setRemoteRepositories(this.session.getCurrentProject().getRemoteArtifactRepositories());
+            // Note: build() will automatically get the POM artifact corresponding to the passed artifact.
+            ProjectBuildingResult result = this.projectBuilder.build(artifact, request);
+            return result.getProject();
+        } catch (ProjectBuildingException e) {
+            throw new MojoExecutionException(String.format("Failed to build project for [%s]", artifact), e);
         }
     }
 
@@ -429,6 +472,20 @@ public class CheckMojo extends AbstractMojo
         return this.packageMetadataNames;
     }
 
+    private Set<String> getMavenExtras() throws MojoExecutionException
+    {
+        if (this.mavenExtras == null) {
+            this.mavenExtras = new HashSet<>();
+            for (RiskAnalyzer analyzers : getAnalyzers()) {
+                this.mavenExtras.addAll(analyzers.getMavenExtras());
+            }
+
+            return this.mavenExtras;
+        }
+
+        return this.mavenExtras;
+        
+    }
     private HttpGet createMetadataPackageRequest(MavenResolvedCallGraph dependency)
     {
         return new HttpGet(this.fastenApiUrl + URLEncodedUtils.formatSegments("mvn", "packages",

@@ -17,6 +17,7 @@
  */
 package eu.fasten.maven.analyzer;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 
@@ -53,6 +54,12 @@ public abstract class AbstractRiskAnalyzer implements RiskAnalyzer
 
     @Override
     public Set<String> getPackageMetadatas()
+    {
+        return Collections.emptySet();
+    }
+
+    @Override
+    public Set<String> getMavenExtras()
     {
         return Collections.emptySet();
     }

@@ -18,9 +18,11 @@
 package eu.fasten.maven;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.maven.artifact.Artifact;
+import org.apache.maven.model.License;
 
 import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
 
@@ -32,12 +34,14 @@ import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
 public class MavenResolvedCallGraph
 {
     private final Artifact artifact;
-
+    
     private final boolean remote;
 
     private final ExtendedRevisionJavaCallGraph graph;
 
     private final Map<String, Object> metadata = new HashMap<>();
+
+    private List<License> licenses;
 
     /**
      * @param artifact the Maven artifact
@@ -81,5 +85,21 @@ public class MavenResolvedCallGraph
     public Map<String, Object> getMetadata()
     {
         return this.metadata;
+    }
+
+    /**
+     * @return the licenses associated with the artifact
+     */
+    public List<License> getLicenses()
+    {
+        return this.licenses;
+    }
+
+    /**
+     * @param licenses the licenses associated with the artifact
+     */
+    public void setLicenses(List<License> licenses)
+    {
+        this.licenses = licenses;
     }
 }

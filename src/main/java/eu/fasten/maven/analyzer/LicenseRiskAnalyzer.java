@@ -17,6 +17,10 @@
  */
 package eu.fasten.maven.analyzer;
 
+import java.util.Set;
+
+import org.apache.commons.collections4.SetUtils;
+
 /**
  * Find license incompatibilities in the stiched graph.
  * 
@@ -24,6 +28,14 @@ package eu.fasten.maven.analyzer;
  */
 public class LicenseRiskAnalyzer extends AbstractRiskAnalyzer
 {
+    private static final Set<String> MAVEN_EXTRAS = SetUtils.hashSet("licenses");
+
+    @Override
+    public Set<String> getMavenExtras()
+    {
+        return MAVEN_EXTRAS;
+    }
+
     @Override
     public void analyze(RiskContext context, RiskReport report)
     {
