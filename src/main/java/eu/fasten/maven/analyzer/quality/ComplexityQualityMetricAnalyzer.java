@@ -37,7 +37,7 @@ public class ComplexityQualityMetricAnalyzer extends AbstractQualityMetricAnalyz
     {
         if (value > this.threshold) {
             report.error(node,
-                "The number complexity of the callable {} located in {} is greater than the maximum value {}.");
+                "The complexity of the callable {} located in {} is greater than the maximum value {}.");
         }
     }
 }

@@ -37,7 +37,7 @@ public class LengthQualityMetricAnalyzer extends AbstractQualityMetricAnalyzer<I
     {
         if (value > this.threshold) {
             report.error(node,
-                "The length the callable {} located in {} is greater than the maximum value {}.");
+                "The length of the callable {} located in {} is greater than the maximum value {}.");
         }
     }
 }

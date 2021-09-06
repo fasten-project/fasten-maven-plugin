@@ -24,7 +24,6 @@ import java.util.stream.Collectors;
 
 import eu.fasten.core.data.FastenURI;
 import eu.fasten.maven.MavenResolvedCallGraph;
-import eu.fasten.maven.StitchedGraphNode;
 
 /**
  * Configure the behavior of a {@link RiskAnalyzer}.
