@@ -479,13 +479,11 @@ public class CheckMojo extends AbstractMojo
             for (RiskAnalyzer analyzers : getAnalyzers()) {
                 this.mavenExtras.addAll(analyzers.getMavenExtras());
             }
-
-            return this.mavenExtras;
         }
 
         return this.mavenExtras;
-        
     }
+
     private HttpGet createMetadataPackageRequest(MavenResolvedCallGraph dependency)
     {
         return new HttpGet(this.fastenApiUrl + URLEncodedUtils.formatSegments("mvn", "packages",
