@@ -20,7 +20,9 @@ package eu.fasten.maven.analyzer;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -54,6 +56,35 @@ public class LicenseRiskAnalyzer extends AbstractRiskAnalyzer
 
     private static final Set<String> MAVEN_EXTRAS = SetUtils.hashSet(LICENSES_KEY);
 
+    private Map<String, Map<String, LicenseResult>> cache = new HashMap<>();
+
+    enum LicenseResultType
+    {
+        COMPATIBLE,
+
+        NOT_COMPATIBLE,
+
+        UNKNOWN
+    }
+
+    class LicenseResult
+    {
+        String message;
+
+        LicenseResultType type;
+
+        public LicenseResult(String message)
+        {
+            if (message.contains("is compatible")) {
+                this.type = LicenseResultType.COMPATIBLE;
+            } else if (message.contains("not compatible")) {
+                this.type = LicenseResultType.NOT_COMPATIBLE;
+            } else {
+                this.type = LicenseResultType.UNKNOWN;
+            }
+        }
+    }
+
     @Override
     public Set<String> getMavenExtras()
     {
@@ -66,25 +97,77 @@ public class LicenseRiskAnalyzer extends AbstractRiskAnalyzer
         // Get the outbound licenses
         List<String> outboundLicenses = getOutboundLicences((MavenRiskContext) context);
 
-        // Get the inbound licenses
-        List<String> inbound = getInboundLicenses((MavenRiskContext) context);
-
-        // Validate each outbound license with the inbound licenses
+        // Validate each dependency with the outbound licenses
         for (String outbound : outboundLicenses) {
-            try {
-                JSONArray result = validate(inbound, outbound, report);
-
-                for (Object obj : result) {
-                    if (obj instanceof String && ((String) obj).contains("not compatible")) {
-                        // TODO: indicate where that inbound license is coming from
-                        report.error("Found a license incompatibility: {}", obj);
+            for (MavenResolvedCallGraph dependency : context.getGraph().getFullDependenciesRCGs()) {
+                if (!report.getAnalyzer().isDependencyIgnored(dependency)) {
+                    try {
+                        validate(outbound, dependency, report);
+                    } catch (Exception e) {
+                        report.error("{}: Failed to validate compatibility of dependency with outbound license [{}]",
+                            dependency.getArtifact().toString(), outbound, e);
                     }
                 }
-            } catch (Exception e) {
-                report.error("Failed to validate compatibility between inbound licenses {} and outbound license [{}]",
-                    inbound, outbound, e);
             }
         }
+    }
+
+    private void validate(String outbound, MavenResolvedCallGraph dependency, RiskReport report)
+        throws IOException, URISyntaxException
+    {
+        List<LicenseResult> errors = null;
+        List<LicenseResult> warnings = null;
+
+        for (License license : dependency.getLicenses()) {
+            LicenseResult result = validate(outbound, license.getName());
+
+            if (result.type == LicenseResultType.COMPATIBLE) {
+                // The dependency is compatible if at least one of its licenses is
+                return;
+            } else if (result.type == LicenseResultType.NOT_COMPATIBLE) {
+                if (errors == null) {
+                    errors = new ArrayList<>();
+                }
+                errors.add(result);
+            } else {
+                if (warnings == null) {
+                    warnings = new ArrayList<>();
+                }
+                warnings.add(result);
+            }
+        }
+
+        // Report errors
+        if (errors != null) {
+            errors.forEach(e -> report.error("{}: {}", dependency.getArtifact().toString(), e.message));
+        }
+
+        // Report warnings
+        if (warnings != null) {
+            warnings.forEach(w -> report.warn("{}: {}", dependency.getArtifact().toString(), w.message));
+        }
+    }
+
+    private LicenseResult validate(String outbound, String inbound) throws IOException, URISyntaxException
+    {
+        LicenseResult result;
+
+        // Try the cache
+        Map<String, LicenseResult> inboundCache = this.cache.get(outbound);
+        if (inboundCache != null) {
+            result = inboundCache.get(inbound);
+            if (result != null) {
+                return result;
+            }
+        }
+
+        // Ask the LCV service
+        result = validateOnline(outbound, inbound);
+
+        // Update the cache
+        this.cache.computeIfAbsent(outbound, k -> new HashMap<>()).put(inbound, result);
+
+        return result;
     }
 
     private List<String> getOutboundLicences(MavenRiskContext context)
@@ -92,20 +175,19 @@ public class LicenseRiskAnalyzer extends AbstractRiskAnalyzer
         return context.getMavenProject().getLicenses().stream().map(License::getName).collect(Collectors.toList());
     }
 
-    private List<String> getInboundLicenses(MavenRiskContext context)
+    private Map<String, List<MavenResolvedCallGraph>> getInboundLicenses(MavenRiskContext context)
     {
-        List<String> licenses = new ArrayList<>();
+        Map<String, List<MavenResolvedCallGraph>> licenses = new HashMap<>();
 
         for (MavenResolvedCallGraph dependency : context.getGraph().getFullDependenciesRCGs()) {
-            // TODO: adding all license at the same level is wrong, it should be a OR
-            dependency.getLicenses().forEach(l -> licenses.add(l.getName()));
+            dependency.getLicenses()
+                .forEach(l -> licenses.computeIfAbsent(l.getName(), k -> new ArrayList<>()).add(dependency));
         }
 
         return licenses;
     }
 
-    private JSONArray validate(List<String> inbound, String outbound, RiskReport report)
-        throws IOException, URISyntaxException
+    private LicenseResult validateOnline(String outbound, String inbound) throws IOException, URISyntaxException
     {
         URIBuilder builder = new URIBuilder(LCVAPIURL);
         builder.addParameter(LCVAPI_INBOUND, String.join(";", inbound));
@@ -116,7 +198,9 @@ public class LicenseRiskAnalyzer extends AbstractRiskAnalyzer
         try (CloseableHttpClient httpclient = HttpClients.createSystem()) {
             try (CloseableHttpResponse response = httpclient.execute(httpGet)) {
                 if (response.getCode() == 200) {
-                    return new JSONArray(new JSONTokener(response.getEntity().getContent()));
+                    JSONArray json = new JSONArray(new JSONTokener(response.getEntity().getContent()));
+                    String message = (String) json.get(0);
+                    return new LicenseResult(message);
                 } else if (response.getCode() == 404) {
                     throw new IOException("License validation service not available (404)");
                 } else {

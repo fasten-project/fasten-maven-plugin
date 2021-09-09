@@ -107,22 +107,22 @@ public class RiskReport
         this.errors.add(new Message(messagePattern, argArray, throwable));
     }
 
-    public void warning(String messagePattern)
+    public void warn(String messagePattern)
     {
-        warning(messagePattern, (Throwable) null);
+        warn(messagePattern, (Throwable) null);
     }
 
-    public void warning(String messagePattern, Throwable throwable)
+    public void warn(String messagePattern, Throwable throwable)
     {
-        warning(messagePattern, ArrayUtils.EMPTY_OBJECT_ARRAY, throwable);
+        warn(messagePattern, ArrayUtils.EMPTY_OBJECT_ARRAY, throwable);
     }
 
-    public void warning(String messagePattern, Object... args)
+    public void warn(String messagePattern, Object... args)
     {
         message(false, messagePattern, args);
     }
 
-    public void warning(String messagePattern, Object[] argArray, Throwable throwable)
+    public void warn(String messagePattern, Object[] argArray, Throwable throwable)
     {
         this.warnings.add(new Message(messagePattern, argArray, throwable));
     }
@@ -143,7 +143,7 @@ public class RiskReport
         if (error) {
             error(messagePattern, argArray, throwable);
         } else {
-            warning(messagePattern, argArray, throwable);
+            warn(messagePattern, argArray, throwable);
         }
     }
 
