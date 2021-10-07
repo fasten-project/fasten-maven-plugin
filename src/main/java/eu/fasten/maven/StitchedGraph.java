@@ -30,7 +30,6 @@ import org.jgrapht.traverse.DepthFirstIterator;
 
 import eu.fasten.core.data.DirectedGraph;
 import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
-import eu.fasten.core.data.FastenDefaultDirectedGraph;
 import eu.fasten.core.data.FastenURI;
 import eu.fasten.core.data.JavaNode;
 import eu.fasten.core.data.JavaScope;
@@ -53,9 +52,9 @@ public class StitchedGraph
 
     private final Set<MavenResolvedCallGraph> stitchedDependenciesRCGs;
 
-    private final FastenDefaultDirectedGraph fullGraph;
+    private final MavenMergedDirectedGraph fullGraph;
 
-    private final FastenDefaultDirectedGraph stitchedGraph;
+    private final MavenMergedDirectedGraph stitchedGraph;
 
     private Map<Long, StitchedGraphNode> graphIdToNode = new HashMap<>();
 
@@ -73,7 +72,7 @@ public class StitchedGraph
 
         // Build full graph
 
-        this.fullGraph = new FastenDefaultDirectedGraph();
+        this.fullGraph = new MavenMergedDirectedGraph();
 
         // Add internal calls
 
@@ -92,13 +91,13 @@ public class StitchedGraph
 
         // Build stitched graph
 
-        this.stitchedGraph = new FastenDefaultDirectedGraph();
+        this.stitchedGraph = new MavenMergedDirectedGraph();
 
         appendNodeAndSuccessors(new IteratorIterable<>(projectCalls), this.stitchedGraph,
             this.fullGraph.externalNodes());
     }
 
-    private void appendNodeAndSuccessors(Iterable<Long> startVertices, FastenDefaultDirectedGraph stitchedGraph,
+    private void appendNodeAndSuccessors(Iterable<Long> startVertices, MavenMergedDirectedGraph stitchedGraph,
         LongSet externalCalls)
     {
         DepthFirstIterator<Long, LongLongPair> iterator = new DepthFirstIterator<>(this.fullGraph, startVertices);
@@ -118,7 +117,7 @@ public class StitchedGraph
         }
     }
 
-    private void addNode(long node, FastenDefaultDirectedGraph stitchedGraph, LongSet externalCalls)
+    private void addNode(long node, MavenMergedDirectedGraph stitchedGraph, LongSet externalCalls)
     {
         if (externalCalls.contains(node)) {
             stitchedGraph.addExternalNode(node);
@@ -130,7 +129,7 @@ public class StitchedGraph
     /**
      * @return the full graph
      */
-    public FastenDefaultDirectedGraph getFullGraph()
+    public DirectedGraph getFullGraph()
     {
         return this.fullGraph;
     }
@@ -138,7 +137,7 @@ public class StitchedGraph
     /**
      * @return the stitched graph
      */
-    public FastenDefaultDirectedGraph getStitchedGraph()
+    public DirectedGraph getStitchedGraph()
     {
         return this.stitchedGraph;
     }
@@ -205,7 +204,7 @@ public class StitchedGraph
         return this.stitchedDependenciesRCGs;
     }
 
-    private long append(FastenDefaultDirectedGraph graph, MavenResolvedCallGraph rcg, long offset)
+    private long append(MavenMergedDirectedGraph graph, MavenResolvedCallGraph rcg, long offset)
     {
         long biggest = offset;
 
@@ -241,7 +240,7 @@ public class StitchedGraph
         return biggest;
     }
 
-    private long addMethods(JavaScope scope, MavenResolvedCallGraph rcg, long offset, FastenDefaultDirectedGraph graph)
+    private long addMethods(JavaScope scope, MavenResolvedCallGraph rcg, long offset, MavenMergedDirectedGraph graph)
     {
         Map<String, JavaType> types = rcg.getGraph().getClassHierarchy().get(scope);
 
@@ -313,7 +312,7 @@ public class StitchedGraph
     }
 
     private void addNode(long graphId, JavaScope scope, JavaNode node, MavenResolvedCallGraph rcg, boolean external,
-        FastenDefaultDirectedGraph graph)
+        MavenMergedDirectedGraph graph)
     {
         if (external) {
             graph.addExternalNode(graphId);
