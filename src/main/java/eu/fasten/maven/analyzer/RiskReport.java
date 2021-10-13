@@ -24,7 +24,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.helpers.MessageFormatter;
 
 import eu.fasten.core.data.FastenURI;
-import eu.fasten.maven.StitchedGraphNode;
+import eu.fasten.maven.MavenGraphNode;
 
 /**
  * @version $Id$
@@ -173,9 +173,9 @@ public class RiskReport
         }
     }
 
-    public boolean isIgnored(StitchedGraphNode node)
+    public boolean isIgnored(MavenGraphNode node)
     {
-        if (this.analyzer.isDependencyIgnored(node.getPackageRCG())) {
+        if (node.getPackageCG().isPresent() && this.analyzer.isDependencyIgnored(node.getPackageCG().get())) {
             return true;
         }
 
@@ -184,13 +184,13 @@ public class RiskReport
         return this.analyzer.isCallableIgnored(callableSignature);
     }
 
-    public void error(StitchedGraphNode node, String message)
+    public void error(MavenGraphNode node, String message)
     {
         // Check of the node is ignored
         if (!isIgnored(node)) {
             String signature = RiskAnalyzerConfiguration.toSignature(node.getLocalNode().getUri());
 
-            error(message, signature, node.getPackageRCG().getArtifact());
+            error(message, signature, node.getPackageCG().isPresent() ? node.getPackageCG().get().getArtifact() : null);
         }
     }
 }

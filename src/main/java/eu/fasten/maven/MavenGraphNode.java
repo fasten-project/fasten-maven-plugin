@@ -17,17 +17,19 @@
  */
 package eu.fasten.maven;
 
+import java.util.Optional;
+
 import eu.fasten.core.data.Constants;
 import eu.fasten.core.data.JavaNode;
 import eu.fasten.core.data.JavaScope;
 import eu.fasten.core.utils.FastenUriUtils;
 
 /**
- * A {@link JavaNode} with a few additional associated information it the context of {@link StitchedGraph}.
+ * A {@link JavaNode} with a few additional associated information it the context of {@link MavenGraph}.
  * 
  * @version $Id$
  */
-public class StitchedGraphNode
+public class MavenGraphNode
 {
     private final long globalId;
 
@@ -35,14 +37,14 @@ public class StitchedGraphNode
 
     private final JavaNode localNode;
 
-    private final MavenResolvedCallGraph packageRCG;
+    private final Optional<MavenExtendedRevisionJavaCallGraph> packageCG;
 
-    public StitchedGraphNode(long globalId, JavaScope scope, JavaNode node, MavenResolvedCallGraph packageRCG)
+    public MavenGraphNode(long globalId, JavaScope scope, JavaNode node, MavenExtendedRevisionJavaCallGraph packageCG)
     {
         this.globalId = globalId;
         this.scope = scope;
         this.localNode = node;
-        this.packageRCG = packageRCG;
+        this.packageCG = Optional.ofNullable(packageCG);
     }
 
     /**
@@ -72,9 +74,9 @@ public class StitchedGraphNode
     /**
      * @return the package resolved call graph
      */
-    public MavenResolvedCallGraph getPackageRCG()
+    public Optional<MavenExtendedRevisionJavaCallGraph> getPackageCG()
     {
-        return this.packageRCG;
+        return this.packageCG;
     }
 
     /**
@@ -82,12 +84,11 @@ public class StitchedGraphNode
      */
     public String getFullURI()
     {
-        // FIXME: not sure what's best for external type
-        if (this.scope == JavaScope.externalTypes) {
+        if (!this.packageCG.isPresent()) {
             return this.localNode.getUri().toString();
         } else {
-            return FastenUriUtils.generateFullFastenUri(Constants.mvnForge, this.packageRCG.getGraph().product,
-                this.packageRCG.getGraph().version, this.localNode.getUri().toString());
+            return FastenUriUtils.generateFullFastenUri(Constants.mvnForge, this.packageCG.get().product,
+                this.packageCG.get().version, this.localNode.getUri().toString());
         }
     }
 }

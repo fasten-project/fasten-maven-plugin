@@ -22,7 +22,7 @@ import java.util.Set;
 
 import org.apache.maven.plugin.MojoExecutionException;
 
-import eu.fasten.maven.MavenResolvedCallGraph;
+import eu.fasten.maven.MavenExtendedRevisionJavaCallGraph;
 
 /**
  * An extension point to process the call graph and report high and low risks found in it.
@@ -64,5 +64,5 @@ public interface RiskAnalyzer
 
     boolean isCallableIgnored(String signature);
 
-    boolean isDependencyIgnored(MavenResolvedCallGraph dependency);
+    boolean isDependencyIgnored(MavenExtendedRevisionJavaCallGraph dependency);
 }

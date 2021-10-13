@@ -26,8 +26,8 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.collections4.SetUtils;
 
 import eu.fasten.core.data.FastenURI;
-import eu.fasten.maven.MavenResolvedCallGraph;
-import eu.fasten.maven.StitchedGraphNode;
+import eu.fasten.maven.MavenExtendedRevisionJavaCallGraph;
+import eu.fasten.maven.MavenGraphNode;
 
 /**
  * Find known security vulnerabilities in the stiched graph.
@@ -55,7 +55,7 @@ public class SecurityRiskAnalyzer extends AbstractRiskAnalyzer
     @Override
     public void analyze(RiskContext context, RiskReport report)
     {
-        for (MavenResolvedCallGraph dependency : context.getGraph().getStitchedDependenciesRCGs()) {
+        for (MavenExtendedRevisionJavaCallGraph dependency : context.getGraph().getOptimizedDependenciesRCGs()) {
             if (dependency.isRemote() && !isDependencyIgnored(dependency)) {
                 Map<String, Map<String, Object>> vulnerabilities = (Map) dependency.getMetadata().get(VULNERABILITIES);
 
@@ -66,7 +66,7 @@ public class SecurityRiskAnalyzer extends AbstractRiskAnalyzer
                         Map<String, Object> vulnerability = entry.getValue();
 
                         // Make sure one of the affected methods is part of the stitched call graph
-                        Set<StitchedGraphNode> nodes = vulnerableCallables(vulnerability, context);
+                        Set<MavenGraphNode> nodes = vulnerableCallables(vulnerability, context);
 
                         if (nodes != null) {
                             // TODO: report it but as a warning if no known method is affected ?
@@ -74,7 +74,7 @@ public class SecurityRiskAnalyzer extends AbstractRiskAnalyzer
                                 StringBuilder builder = new StringBuilder(
                                     "The vulnerability {} affects dependency {} because of the following used callables:");
 
-                                for (StitchedGraphNode node : nodes) {
+                                for (MavenGraphNode node : nodes) {
                                     builder.append('\n');
                                     builder.append("  * ");
                                     builder.append(RiskAnalyzerConfiguration.toSignature(node.getLocalNode().getUri()));
@@ -92,7 +92,7 @@ public class SecurityRiskAnalyzer extends AbstractRiskAnalyzer
         }
     }
 
-    private Set<StitchedGraphNode> vulnerableCallables(Map<String, Object> vulnerability, RiskContext context)
+    private Set<MavenGraphNode> vulnerableCallables(Map<String, Object> vulnerability, RiskContext context)
     {
         List<String> uris = (List<String>) vulnerability.get(VULNERABILITIES_URIS);
 
@@ -101,7 +101,7 @@ public class SecurityRiskAnalyzer extends AbstractRiskAnalyzer
             return null;
         }
 
-        Set<StitchedGraphNode> nodes = new LinkedHashSet<>(uris.size());
+        Set<MavenGraphNode> nodes = new LinkedHashSet<>(uris.size());
         for (String uri : uris) {
             FastenURI fastenURI = FastenURI.create(uri);
 
@@ -109,7 +109,7 @@ public class SecurityRiskAnalyzer extends AbstractRiskAnalyzer
             String callableSignature = RiskAnalyzerConfiguration.toSignature(fastenURI);
             if (!isCallableIgnored(callableSignature)) {
                 // Find the callable node and make sure it's part of the stiched call graph
-                StitchedGraphNode node = context.getGraph().getNode(fastenURI, true);
+                MavenGraphNode node = context.getGraph().getNode(fastenURI, true);
 
                 if (node != null) {
                     nodes.add(node);

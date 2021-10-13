@@ -19,10 +19,13 @@ package eu.fasten.maven;
 
 import java.io.InputStream;
 import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.maven.Maven;
 import org.apache.maven.artifact.Artifact;
+import org.apache.maven.model.License;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
@@ -41,6 +44,10 @@ public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCall
     private final Artifact artifact;
 
     private final boolean remote;
+
+    private final Map<String, Object> metadata = new HashMap<>();
+
+    private List<License> licenses;
 
     /**
      * Creates {@link ExtendedRevisionJavaCallGraph} with the given builder.
@@ -87,5 +94,29 @@ public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCall
     public boolean isRemote()
     {
         return this.remote;
+    }
+
+    /**
+     * @return the metadata associated with the package
+     */
+    public Map<String, Object> getMetadata()
+    {
+        return this.metadata;
+    }
+
+    /**
+     * @return the licenses associated with the artifact
+     */
+    public List<License> getMavenLicenses()
+    {
+        return this.licenses;
+    }
+
+    /**
+     * @param licenses the licenses associated with the artifact
+     */
+    public void setMavenLicenses(List<License> licenses)
+    {
+        this.licenses = licenses;
     }
 }

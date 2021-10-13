@@ -28,7 +28,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.jgrapht.traverse.DepthFirstIterator;
 
-import eu.fasten.maven.StitchedGraphNode;
+import eu.fasten.maven.MavenGraphNode;
 import eu.fasten.maven.analyzer.quality.QualityMetricAnalyzer;
 import it.unimi.dsi.fastutil.longs.LongLongPair;
 
@@ -58,12 +58,12 @@ public class QualityRiskAnalyzer extends AbstractRiskAnalyzer
         List<QualityMetricAnalyzer> metricAnalyzers = getAnalyzers();
 
         DepthFirstIterator<Long, LongLongPair> iterator =
-            new DepthFirstIterator<>(context.getGraph().getStitchedGraph());
+            new DepthFirstIterator<>(context.getGraph().getOptimizedGraph());
 
         while (iterator.hasNext()) {
             long edge = iterator.next();
 
-            StitchedGraphNode node = context.getGraph().getNode(edge);
+            MavenGraphNode node = context.getGraph().getNode(edge);
 
             Map<String, Object> quality = (Map<String, Object>) node.getLocalNode().getMetadata().get(QUALITY);
 

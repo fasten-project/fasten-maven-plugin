@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -68,11 +69,10 @@ import org.json.JSONTokener;
 
 import eu.fasten.analyzer.javacgopal.data.CallGraphConstructor;
 import eu.fasten.analyzer.javacgopal.data.PartialCallGraph;
-import eu.fasten.core.data.DirectedGraph;
 import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
+import eu.fasten.core.data.JSONUtils;
 import eu.fasten.core.data.JavaScope;
 import eu.fasten.core.data.opal.exceptions.OPALException;
-import eu.fasten.core.merge.CGMerger;
 import eu.fasten.maven.analyzer.MavenRiskContext;
 import eu.fasten.maven.analyzer.RiskAnalyzer;
 import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
@@ -146,7 +146,7 @@ public class CheckMojo extends AbstractMojo
 
     private CloseableHttpClient httpclient;
 
-    StitchedGraph graph;
+    MavenGraph graph;
 
     List<RiskReport> reports;
 
@@ -201,24 +201,7 @@ public class CheckMojo extends AbstractMojo
             // Produce resolved call graphs
             getLog().info("Produce resolved call graphs.");
 
-            CGMerger merger = new CGMerger(all);
-
-            // Produce the resolved graph for the project
-            MavenResolvedCallGraph projectRCG =
-                resolveCG(merger, projectCG, new File(this.outputDirectory, "project.resolved.json"));
-
-            // Produce the resolved graph for each dependency
-            List<MavenResolvedCallGraph> dependenciesRCGs = new ArrayList<>(dependenciesCGs.size());
-            for (MavenExtendedRevisionJavaCallGraph dependencyCG : dependenciesCGs) {
-                File outputFile = toOutputFile(dependencyCG.getArtifact(), ".resolved.json");
-
-                dependenciesRCGs.add(resolveCG(merger, dependencyCG, outputFile));
-            }
-
-            // Produce the stitched call graph
-            getLog().info("Produce stitched call graphs.");
-
-            this.graph = new StitchedGraph(projectRCG, dependenciesRCGs);
+            this.graph = new MavenGraph(projectCG, dependenciesCGs);
 
             // Enrich the stitched call graph
             try {
@@ -331,13 +314,14 @@ public class CheckMojo extends AbstractMojo
             return;
         }
 
-        Set<MavenResolvedCallGraph> dependencies = enrichStitchedCallables();
+        Set<MavenExtendedRevisionJavaCallGraph> dependencies = enrichStitchedCallables();
         enrichDependencies(dependencies);
     }
 
-    private void enrichDependencies(Set<MavenResolvedCallGraph> dependencies) throws MojoExecutionException, IOException
+    private void enrichDependencies(Set<MavenExtendedRevisionJavaCallGraph> dependencies)
+        throws MojoExecutionException, IOException
     {
-        for (MavenResolvedCallGraph dependency : dependencies) {
+        for (MavenExtendedRevisionJavaCallGraph dependency : dependencies) {
             getLog().info("Requesting meta data for dependency " + dependency.getArtifact());
 
             JSONObject responseData = getMetadataPackage(dependency);
@@ -359,7 +343,7 @@ public class CheckMojo extends AbstractMojo
             if (getMavenExtras().contains("licenses")) {
                 MavenProject artifactProject = getMavenProject(dependency.getArtifact());
 
-                dependency.setLicenses(artifactProject.getLicenses());
+                dependency.setMavenLicenses(artifactProject.getLicenses());
             }
         }
     }
@@ -384,23 +368,23 @@ public class CheckMojo extends AbstractMojo
         }
     }
 
-    private Set<MavenResolvedCallGraph> enrichStitchedCallables()
+    private Set<MavenExtendedRevisionJavaCallGraph> enrichStitchedCallables()
         throws MojoExecutionException, URISyntaxException, IOException
     {
-        Set<MavenResolvedCallGraph> dependencies = new HashSet<>();
+        Set<MavenExtendedRevisionJavaCallGraph> dependencies = new HashSet<>();
 
-        List<StitchedGraphNode> nodes = this.graph.getStitchedNodes();
+        List<MavenGraphNode> nodes = this.graph.getOptimizedNodes();
         getLog().info("Enriching stitched call graph with " + nodes.size() + " callable nodes.");
-        Map<String, StitchedGraphNode> map = new HashMap<>();
+        Map<String, MavenGraphNode> map = new HashMap<>();
         JSONArray json = new JSONArray();
-        for (StitchedGraphNode node : nodes) {
-            if (node.getPackageRCG().isRemote() && node.getScope() == JavaScope.internalTypes) {
+        for (MavenGraphNode node : nodes) {
+            if (node.getScope() == JavaScope.internalTypes && node.getPackageCG().get().isRemote()) {
                 String fullURI = node.getFullURI();
                 json.put(fullURI);
                 map.put(fullURI, node);
 
                 // Remember the dependency package
-                dependencies.add(node.getPackageRCG());
+                dependencies.add(node.getPackageCG().get());
             }
         }
         getLog().info("Requesting meta data for " + map.keySet().size() + " callable nodes.");
@@ -412,7 +396,7 @@ public class CheckMojo extends AbstractMojo
                 getLog().info("Received meta data for " + responseData.keySet().size() + " callable nodes.");
 
                 for (String uri : responseData.keySet()) {
-                    StitchedGraphNode node = map.get(uri);
+                    MavenGraphNode node = map.get(uri);
 
                     JSONObject metadata = (JSONObject) responseData.get(uri);
 
@@ -424,7 +408,7 @@ public class CheckMojo extends AbstractMojo
         return dependencies;
     }
 
-    private JSONObject getMetadataPackage(MavenResolvedCallGraph dependency) throws IOException
+    private JSONObject getMetadataPackage(MavenExtendedRevisionJavaCallGraph dependency) throws IOException
     {
         // Get the list of metadata to retrieve
         HttpGet httpGet = createMetadataPackageRequest(dependency);
@@ -484,10 +468,10 @@ public class CheckMojo extends AbstractMojo
         return this.mavenExtras;
     }
 
-    private HttpGet createMetadataPackageRequest(MavenResolvedCallGraph dependency)
+    private HttpGet createMetadataPackageRequest(MavenExtendedRevisionJavaCallGraph dependency)
     {
         return new HttpGet(this.fastenApiUrl + URLEncodedUtils.formatSegments("mvn", "packages",
-            dependency.getGraph().uri.getProduct(), dependency.getGraph().uri.getVersion(), "metadata"));
+            dependency.uri.getProduct(), dependency.uri.getVersion(), "metadata"));
     }
 
     private HttpPost createMetadataCallableRequest(JSONArray json) throws URISyntaxException, MojoExecutionException
@@ -504,17 +488,6 @@ public class CheckMojo extends AbstractMojo
         httpPost.setEntity(new StringEntity(json.toString(), ContentType.APPLICATION_JSON));
 
         return httpPost;
-    }
-
-    private MavenResolvedCallGraph resolveCG(CGMerger merger, MavenExtendedRevisionJavaCallGraph cg,
-        File mergeCallGraphFile) throws MojoExecutionException
-    {
-        getLog().info("Generating resolved call graphs and serializing it on [" + mergeCallGraphFile + "].");
-
-        DirectedGraph mergedCG = merger.mergeWithCHA(cg);
-
-        // TODO
-        return new MavenResolvedCallGraph(cg.getArtifact(), cg.isRemote(), null);
     }
 
     private MavenExtendedRevisionJavaCallGraph getCallGraph(Artifact artifact) throws IOException, OPALException
@@ -618,10 +591,31 @@ public class CheckMojo extends AbstractMojo
 
         boolean remote = isRemote(artifact.getVersion(), false);
 
-        return new MavenExtendedRevisionJavaCallGraph(artifact,
+        MavenExtendedRevisionJavaCallGraph cg = new MavenExtendedRevisionJavaCallGraph(artifact,
             ExtendedRevisionJavaCallGraph.extendedBuilder().graph(input.getGraph()).product(product)
                 .version(artifact.getVersion()).timestamp(0).cgGenerator("").forge("")
                 .classHierarchy(input.getClassHierarchy()).nodeCount(input.getNodeCount()),
             remote);
+
+        // Remember the call graph in a file
+
+        // Make sure the parent folder exist
+        outputFile.getParentFile().mkdirs();
+
+        if (this.serialize) {
+            try {
+                writeRcgJsonString(cg, outputFile);
+            } catch (Exception e) {
+                getLog().warn("Failed to serialize the call graph for artifact [" + artifact + "]: "
+                    + ExceptionUtils.getRootCauseMessage(e));
+            }
+        }
+
+        return cg;
+    }
+
+    private void writeRcgJsonString(ExtendedRevisionJavaCallGraph rcg, File outputFile) throws IOException
+    {
+        FileUtils.write(outputFile, JSONUtils.toJSONString(rcg), StandardCharsets.UTF_8);
     }
 }

@@ -22,7 +22,7 @@ import java.util.Map;
 import org.apache.commons.beanutils.ConvertUtils;
 import org.apache.commons.lang3.reflect.TypeUtils;
 
-import eu.fasten.maven.StitchedGraphNode;
+import eu.fasten.maven.MavenGraphNode;
 import eu.fasten.maven.analyzer.RiskContext;
 import eu.fasten.maven.analyzer.RiskReport;
 
@@ -49,12 +49,12 @@ public abstract class AbstractQualityMetricAnalyzer<T> implements QualityMetricA
     }
 
     @Override
-    public void analyze(RiskContext context, StitchedGraphNode node, Map<String, Object> metrics, RiskReport report)
+    public void analyze(RiskContext context, MavenGraphNode node, Map<String, Object> metrics, RiskReport report)
     {
         Object value = metrics.get(getMetric());
 
         analyzeValue(context, node, (T) ConvertUtils.convert(value, this.thresholdClass), report);
     }
 
-    protected abstract void analyzeValue(RiskContext context, StitchedGraphNode node, T value, RiskReport report);
+    protected abstract void analyzeValue(RiskContext context, MavenGraphNode node, T value, RiskReport report);
 }

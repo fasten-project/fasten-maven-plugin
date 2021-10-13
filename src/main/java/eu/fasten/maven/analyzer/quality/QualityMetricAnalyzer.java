@@ -19,7 +19,7 @@ package eu.fasten.maven.analyzer.quality;
 
 import java.util.Map;
 
-import eu.fasten.maven.StitchedGraphNode;
+import eu.fasten.maven.MavenGraphNode;
 import eu.fasten.maven.analyzer.RiskContext;
 import eu.fasten.maven.analyzer.RiskReport;
 
@@ -30,5 +30,5 @@ public interface QualityMetricAnalyzer
 {
     void initialize(Object configuration);
 
-    void analyze(RiskContext context, StitchedGraphNode node, Map<String, Object> metrics, RiskReport report);
+    void analyze(RiskContext context, MavenGraphNode node, Map<String, Object> metrics, RiskReport report);
 }

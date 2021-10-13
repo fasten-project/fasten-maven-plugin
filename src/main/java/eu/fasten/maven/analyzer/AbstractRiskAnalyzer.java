@@ -22,7 +22,7 @@ import java.util.Set;
 
 import org.apache.maven.plugin.MojoExecutionException;
 
-import eu.fasten.maven.MavenResolvedCallGraph;
+import eu.fasten.maven.MavenExtendedRevisionJavaCallGraph;
 
 /**
  * @version $Id$
@@ -82,7 +82,7 @@ public abstract class AbstractRiskAnalyzer implements RiskAnalyzer
     }
 
     @Override
-    public boolean isDependencyIgnored(MavenResolvedCallGraph dependency)
+    public boolean isDependencyIgnored(MavenExtendedRevisionJavaCallGraph dependency)
     {
         return getConfiguration().isDependencyIgnored(dependency);
     }

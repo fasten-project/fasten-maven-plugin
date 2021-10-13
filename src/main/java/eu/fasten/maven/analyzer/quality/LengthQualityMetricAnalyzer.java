@@ -17,7 +17,7 @@
  */
 package eu.fasten.maven.analyzer.quality;
 
-import eu.fasten.maven.StitchedGraphNode;
+import eu.fasten.maven.MavenGraphNode;
 import eu.fasten.maven.analyzer.RiskContext;
 import eu.fasten.maven.analyzer.RiskReport;
 
@@ -33,7 +33,7 @@ public class LengthQualityMetricAnalyzer extends AbstractQualityMetricAnalyzer<I
     }
 
     @Override
-    protected void analyzeValue(RiskContext context, StitchedGraphNode node, Integer value, RiskReport report)
+    protected void analyzeValue(RiskContext context, MavenGraphNode node, Integer value, RiskReport report)
     {
         if (value > this.threshold) {
             report.error(node,

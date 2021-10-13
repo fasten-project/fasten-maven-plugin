@@ -21,7 +21,7 @@ import java.util.Set;
 
 import org.apache.commons.collections4.SetUtils;
 
-import eu.fasten.maven.StitchedGraphNode;
+import eu.fasten.maven.MavenGraphNode;
 
 /**
  * Identify binary incompatibilities in the call graph.
@@ -37,8 +37,8 @@ public class BinaryRiskAnalyzer extends AbstractRiskAnalyzer
     public void analyze(RiskContext context, RiskReport report)
     {
         // Report broken calls (unresolved external calls)
-        for (long nodeId : context.getGraph().getStitchedGraph().externalNodes()) {
-            StitchedGraphNode node = context.getGraph().getNode(nodeId);
+        for (long nodeId : context.getGraph().getOptimizedGraph().externalNodes()) {
+            MavenGraphNode node = context.getGraph().getNode(nodeId);
 
             report.error(node.getLocalNode().getUri(), "The callable {} cannot be resolved.");
         }

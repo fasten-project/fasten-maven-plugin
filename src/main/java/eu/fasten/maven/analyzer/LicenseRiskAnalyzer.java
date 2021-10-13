@@ -37,7 +37,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
-import eu.fasten.maven.MavenResolvedCallGraph;
+import eu.fasten.maven.MavenExtendedRevisionJavaCallGraph;
 
 /**
  * Find license incompatibilities in the runtime dependencies.
@@ -111,7 +111,7 @@ public class LicenseRiskAnalyzer extends AbstractRiskAnalyzer
 
         // Validate each dependency with the outbound licenses
         for (String outbound : outboundLicenses) {
-            for (MavenResolvedCallGraph dependency : context.getGraph().getFullDependenciesRCGs()) {
+            for (MavenExtendedRevisionJavaCallGraph dependency : context.getGraph().getFullDependenciesCGs()) {
                 if (!report.getAnalyzer().isDependencyIgnored(dependency)) {
                     try {
                         validate(outbound, dependency, report);
@@ -124,13 +124,13 @@ public class LicenseRiskAnalyzer extends AbstractRiskAnalyzer
         }
     }
 
-    private void validate(String outbound, MavenResolvedCallGraph dependency, RiskReport report)
+    private void validate(String outbound, MavenExtendedRevisionJavaCallGraph dependency, RiskReport report)
         throws IOException, URISyntaxException
     {
         List<LicenseResult> errors = null;
         List<LicenseResult> warnings = null;
 
-        for (License license : dependency.getLicenses()) {
+        for (License license : dependency.getMavenLicenses()) {
             LicenseResult result = validate(outbound, license.getName());
 
             if (result.status == LicenseResultType.COMPATIBLE) {

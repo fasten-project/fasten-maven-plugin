@@ -49,7 +49,6 @@ import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.project.MavenProject;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import eu.fasten.core.data.JavaScope;
@@ -110,7 +109,6 @@ class CheckMojoTest
     }
 
     @BeforeEach
-    @Disabled
     void beforeEach() throws IllegalAccessException
     {
         this.testWorkDir = new File("target/test-" + new Date().getTime()).getAbsoluteFile();
@@ -126,7 +124,7 @@ class CheckMojoTest
 
         this.project.setArtifact(artifact("pgroupid", "partifactid", "1.0-SNAPSHOT", null, null));
 
-        when(session.isOffline()).thenReturn(false);
+        when(this.session.isOffline()).thenReturn(false);
         FieldUtils.writeField(this.mojo, "session", this.session, true);
     }
 
@@ -161,7 +159,6 @@ class CheckMojoTest
     }
 
     @Test
-    @Disabled
     void testStitching() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException
     {
         this.projectWorkDir = new File(this.testWorkDir, "A/");
@@ -188,7 +185,7 @@ class CheckMojoTest
 
         this.mojo.execute();
 
-        List<StitchedGraphNode> nodes = this.mojo.graph.getStitchedNodes();
+        List<MavenGraphNode> nodes = this.mojo.graph.getOptimizedNodes();
 
         // All stitched nodes
         assertEqualSet(SetUtils.hashSet(
@@ -219,7 +216,6 @@ class CheckMojoTest
     }
 
     @Test
-    @Disabled
     void testMetadata() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException
     {
         this.projectWorkDir = new File(this.testWorkDir, "PROJECT/");
@@ -241,7 +237,7 @@ class CheckMojoTest
 
         this.mojo.execute();
 
-        List<StitchedGraphNode> nodes = this.mojo.graph.getStitchedNodes();
+        List<MavenGraphNode> nodes = this.mojo.graph.getOptimizedNodes();
 
         // Resolved node URIs
         assertEqualSet(SetUtils.hashSet(
@@ -254,7 +250,6 @@ class CheckMojoTest
     }
 
     @Test
-    @Disabled
     void testSecurity() throws IOException, IllegalAccessException
     {
         this.projectWorkDir = new File(this.testWorkDir, "PROJECT/");
@@ -303,14 +298,12 @@ class CheckMojoTest
     }
 
     @Test
-    @Disabled
     void testQuality() throws IOException, IllegalAccessException
     {
         // TODO
     }
 
     @Test
-    @Disabled
     void testBinary() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException
     {
         this.projectWorkDir = new File(this.testWorkDir, "A/");

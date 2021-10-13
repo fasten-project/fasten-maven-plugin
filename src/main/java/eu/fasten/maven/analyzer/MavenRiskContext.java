@@ -20,7 +20,7 @@ package eu.fasten.maven.analyzer;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.project.MavenProject;
 
-import eu.fasten.maven.StitchedGraph;
+import eu.fasten.maven.MavenGraph;
 
 /**
  * Extends {@link RiskContext} with Maven runtime specific information.
@@ -33,7 +33,7 @@ public class MavenRiskContext extends RiskContext
 
     private final MavenProject mavenProject;
 
-    public MavenRiskContext(StitchedGraph graph, MavenSession mavenSession, MavenProject project)
+    public MavenRiskContext(MavenGraph graph, MavenSession mavenSession, MavenProject project)
     {
         super(graph);
 

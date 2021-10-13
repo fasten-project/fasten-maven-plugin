@@ -17,16 +17,16 @@
  */
 package eu.fasten.maven.analyzer;
 
-import eu.fasten.maven.StitchedGraph;
+import eu.fasten.maven.MavenGraph;
 
 /**
  * @version $Id$
  */
 public class RiskContext
 {
-    private final StitchedGraph graph;
+    private final MavenGraph graph;
 
-    public RiskContext(StitchedGraph graph)
+    public RiskContext(MavenGraph graph)
     {
         this.graph = graph;
     }
@@ -34,7 +34,7 @@ public class RiskContext
     /**
      * @return the graph
      */
-    public StitchedGraph getGraph()
+    public MavenGraph getGraph()
     {
         return this.graph;
     }

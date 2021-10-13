@@ -19,8 +19,6 @@
  */
 package eu.fasten.maven;
 
-import org.junit.jupiter.api.Disabled;
-
 import com.soebes.itf.jupiter.extension.MavenJupiterExtension;
 import com.soebes.itf.jupiter.extension.MavenTest;
 import com.soebes.itf.jupiter.maven.MavenExecutionResult;
@@ -39,7 +37,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 public class CheckMojoIT
 {
     @MavenTest
-    @Disabled
     void test1(MavenExecutionResult result)
     {
         assertSame(ExecutionResult.Successful, result.getResult());

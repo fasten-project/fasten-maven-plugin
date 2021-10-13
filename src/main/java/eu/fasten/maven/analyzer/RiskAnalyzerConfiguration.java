@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import eu.fasten.core.data.FastenURI;
-import eu.fasten.maven.MavenResolvedCallGraph;
+import eu.fasten.maven.MavenExtendedRevisionJavaCallGraph;
 
 /**
  * Configure the behavior of a {@link RiskAnalyzer}.
@@ -133,7 +133,7 @@ public class RiskAnalyzerConfiguration
         return getIgnoredCallables().stream().anyMatch(p -> p.matcher(signature).matches());
     }
 
-    public boolean isDependencyIgnored(MavenResolvedCallGraph dependency)
+    public boolean isDependencyIgnored(MavenExtendedRevisionJavaCallGraph dependency)
     {
         String id = dependency.getArtifact().getGroupId() + ':' + dependency.getArtifact().getArtifactId();
 
