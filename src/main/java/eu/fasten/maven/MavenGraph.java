@@ -17,6 +17,9 @@
  */
 package eu.fasten.maven;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -267,5 +270,44 @@ public class MavenGraph
     {
         return FastenURI.createSchemeless(null, null, null, fullFastenURI.getRawNamespace(),
             fullFastenURI.getRawEntity());
+    }
+
+    public void serialize(File folder) throws IOException
+    {
+        // Make sure the folder exist
+        folder.mkdirs();
+
+        File mapFile = new File(folder, "nodes.txt");
+
+        try (FileWriter writer = new FileWriter(mapFile)) {
+            for (Map.Entry<Long, MavenGraphNode> entry : this.graphIdToNode.entrySet()) {
+                writer.append(entry.getKey().toString());
+                writer.append(':');
+                writer.append(entry.getValue().getFullURI());
+                writer.append('\n');
+            }
+        }
+
+        File fullGraphFile = new File(folder, "fullGraph.txt");
+
+        try (FileWriter writer = new FileWriter(fullGraphFile)) {
+            for (LongLongPair edge : this.fullGraph.edgeSet()) {
+                writer.append(String.valueOf(edge.leftLong()));
+                writer.append(" -> ");
+                writer.append(String.valueOf(edge.rightLong()));
+                writer.append('\n');
+            }
+        }
+
+        File optimizedGraphFile = new File(folder, "optimizedGraph.txt");
+
+        try (FileWriter writer = new FileWriter(optimizedGraphFile)) {
+            for (LongLongPair edge : this.optimizedGraph.edgeSet()) {
+                writer.append(String.valueOf(edge.leftLong()));
+                writer.append(" -> ");
+                writer.append(String.valueOf(edge.rightLong()));
+                writer.append('\n');
+            }
+        }
     }
 }

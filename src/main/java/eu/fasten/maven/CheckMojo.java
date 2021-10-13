@@ -202,6 +202,13 @@ public class CheckMojo extends AbstractMojo
             getLog().info("Produce resolved call graphs.");
 
             this.graph = new MavenGraph(projectCG, dependenciesCGs);
+            if (this.serialize) {
+                try {
+                    this.graph.serialize(new File(this.outputDirectory, "stitched-graphs"));
+                } catch (IOException e) {
+                    getLog().warn("Failed to serialize the stitched graphs: " + ExceptionUtils.getRootCauseMessage(e));
+                }
+            }
 
             // Enrich the stitched call graph
             try {
