@@ -328,14 +328,18 @@ public class CheckMojo extends AbstractMojo
     private void enrichDependencies(Set<MavenExtendedRevisionJavaCallGraph> dependencies)
         throws MojoExecutionException, IOException
     {
+        Set<String> metadataNames = getPackageMetadataNames();
+        if (metadataNames.isEmpty()) {
+            // We don't need package callable metadata
+            return;
+        }
+
         for (MavenExtendedRevisionJavaCallGraph dependency : dependencies) {
             getLog().info("Requesting meta data for dependency " + dependency.getArtifact());
 
             JSONObject responseData = getMetadataPackage(dependency);
 
             if (responseData != null) {
-                Set<String> metadataNames = getPackageMetadataNames();
-
                 JSONObject metadata = (JSONObject) responseData.get("metadata");
                 if (metadata != null) {
                     for (Map.Entry<String, Object> entry : metadata.toMap().entrySet()) {
@@ -438,15 +442,17 @@ public class CheckMojo extends AbstractMojo
     {
         // Get the list of metadata to retrieve
         HttpPost httpPost = createMetadataCallableRequest(input);
-        try (CloseableHttpResponse response = this.httpclient.execute(httpPost)) {
-            if (response.getCode() == 200) {
-                return new JSONObject(new JSONTokener(response.getEntity().getContent()));
-            } else {
-                getLog().warn("Unexpected code when resolving callables metadata: " + response.getCode());
-
-                return null;
+        if (httpPost != null) {
+            try (CloseableHttpResponse response = this.httpclient.execute(httpPost)) {
+                if (response.getCode() == 200) {
+                    return new JSONObject(new JSONTokener(response.getEntity().getContent()));
+                } else {
+                    getLog().warn("Unexpected code when resolving callables metadata: " + response.getCode());
+                }
             }
         }
+
+        return null;
     }
 
     private Set<String> getPackageMetadataNames() throws MojoExecutionException
@@ -483,11 +489,17 @@ public class CheckMojo extends AbstractMojo
 
     private HttpPost createMetadataCallableRequest(JSONArray json) throws URISyntaxException, MojoExecutionException
     {
-        URIBuilder builder = new URIBuilder(this.fastenApiUrl + "/metadata/callables");
         Set<String> metadataNames = new HashSet<>();
         for (RiskAnalyzer analyzers : getAnalyzers()) {
             metadataNames.addAll(analyzers.getCallableMetadatas());
         }
+
+        if (metadataNames.isEmpty()) {
+            // We don't need any callable metadata
+            return null;
+        }
+
+        URIBuilder builder = new URIBuilder(this.fastenApiUrl + "/metadata/callables");
         metadataNames.forEach(e -> builder.addParameter("attributes", e));
 
         HttpPost httpPost = new HttpPost(builder.build());
