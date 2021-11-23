@@ -232,7 +232,7 @@ class CheckMojoTest
         this.project.setBuild(build);
 
         Set<Artifact> artifacts = new LinkedHashSet<>();
-        artifacts.add(artifact("org.ow2.asm", "asm", "7.3", new File("asm.jar"), MAVEN_CENTRAL));
+        artifacts.add(artifact("org.ow2.asm", "asm", "7.0", new File("asm.jar"), MAVEN_CENTRAL));
         this.project.setArtifacts(artifacts);
 
         this.mojo.execute();
@@ -243,8 +243,7 @@ class CheckMojoTest
         assertEqualSet(SetUtils.hashSet(
             "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.metadata/ProjectClass.%3Cinit%3E()%2Fjava.lang%2FVoidType",
             "fasten://mvn!pgroupid:partifactid$1.0-SNAPSHOT/eu.fasten.maven.metadata/ProjectClass.m()%2Fjava.lang%2FVoidType",
-            "fasten://mvn!org.ow2.asm:asm$7.0/org.objectweb.asm/Label.%3Cinit%3E()%2Fjava.lang%2FVoidType",
-            "fasten://mvn!org.ow2.asm:asm$7.0/org.objectweb.asm/Label.%3Cclinit%3E()%2Fjava.lang%2FVoidType"),
+            "fasten://mvn!org.ow2.asm:asm$7.0/org.objectweb.asm/Label.%3Cinit%3E()%2Fjava.lang%2FVoidType"),
             nodes.stream().filter(node -> node.getScope() != JavaScope.externalTypes).map(node -> node.getFullURI())
                 .collect(Collectors.toSet()));
     }

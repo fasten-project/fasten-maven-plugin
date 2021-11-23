@@ -126,10 +126,10 @@ public class MavenGraph
     private MergedDirectedGraph createFullGraph()
     {
         CGMerger merger =
-            new CGMerger(ListUtils.union(Collections.singletonList(this.projectRCG), this.fullDependenciesCGs));
+            new CGMerger(ListUtils.union(Collections.singletonList(this.projectRCG), this.fullDependenciesCGs), true);
 
         // Generate the graph
-        MergedDirectedGraph graph = (MergedDirectedGraph) merger.mergeAllDeps(true);
+        MergedDirectedGraph graph = (MergedDirectedGraph) merger.mergeAllDeps();
 
         // Store the generated mapping between the node id and its full URL
         index(merger);
