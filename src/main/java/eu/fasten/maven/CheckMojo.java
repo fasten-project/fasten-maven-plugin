@@ -17,6 +17,8 @@
  */
 package eu.fasten.maven;
 
+import static eu.fasten.analyzer.javacgopal.data.CallPreservationStrategy.ONLY_STATIC_CALLSITES;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -67,8 +69,10 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
-import eu.fasten.analyzer.javacgopal.data.CallGraphConstructor;
+import eu.fasten.analyzer.javacgopal.data.CGAlgorithm;
+import eu.fasten.analyzer.javacgopal.data.OPALCallGraphConstructor;
 import eu.fasten.analyzer.javacgopal.data.PartialCallGraph;
+import eu.fasten.analyzer.javacgopal.data.PartialCallGraphConstructor;
 import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
 import eu.fasten.core.data.JSONUtils;
 import eu.fasten.core.data.JavaScope;
@@ -606,14 +610,16 @@ public class CheckMojo extends AbstractMojo
     private MavenExtendedRevisionJavaCallGraph buildCallGraph(Artifact artifact, File file, File outputFile,
         String product) throws OPALException
     {
-        PartialCallGraph input = new PartialCallGraph(new CallGraphConstructor(file, null, this.genAlgorithm));
+    	var ocgc = new OPALCallGraphConstructor();
+    	var pcgc = new PartialCallGraphConstructor();
+        PartialCallGraph input = pcgc.construct(ocgc.construct(file, CGAlgorithm.valueOf(this.genAlgorithm)), ONLY_STATIC_CALLSITES);
 
         boolean remote = isRemote(artifact.getVersion(), false);
 
         MavenExtendedRevisionJavaCallGraph cg = new MavenExtendedRevisionJavaCallGraph(artifact,
-            ExtendedRevisionJavaCallGraph.extendedBuilder().graph(input.getGraph()).product(product)
+            ExtendedRevisionJavaCallGraph.extendedBuilder().graph(input.graph).product(product)
                 .version(artifact.getVersion()).timestamp(0).cgGenerator("").forge("")
-                .classHierarchy(input.getClassHierarchy()).nodeCount(input.getNodeCount()),
+                .classHierarchy(input.classHierarchy).nodeCount(input.nodeCount),
             remote);
 
         // Remember the call graph in a file
