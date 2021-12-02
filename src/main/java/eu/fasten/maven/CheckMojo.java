@@ -17,7 +17,7 @@
  */
 package eu.fasten.maven;
 
-import static eu.fasten.analyzer.javacgopal.data.CallPreservationStrategy.ONLY_STATIC_CALLSITES;
+import static eu.fasten.core.data.callgraph.CallPreservationStrategy.ONLY_STATIC_CALLSITES;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -69,13 +69,13 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
-import eu.fasten.analyzer.javacgopal.data.CGAlgorithm;
-import eu.fasten.analyzer.javacgopal.data.OPALCallGraphConstructor;
-import eu.fasten.analyzer.javacgopal.data.PartialCallGraph;
-import eu.fasten.analyzer.javacgopal.data.PartialCallGraphConstructor;
+import eu.fasten.analyzer.javacgopal.OPALCallGraphConstructor;
+import eu.fasten.analyzer.javacgopal.PartialCallGraphConstructor;
 import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
 import eu.fasten.core.data.JSONUtils;
 import eu.fasten.core.data.JavaScope;
+import eu.fasten.core.data.callgraph.CGAlgorithm;
+import eu.fasten.core.data.callgraph.PartialCallGraph;
 import eu.fasten.core.data.opal.exceptions.OPALException;
 import eu.fasten.maven.analyzer.MavenRiskContext;
 import eu.fasten.maven.analyzer.RiskAnalyzer;
