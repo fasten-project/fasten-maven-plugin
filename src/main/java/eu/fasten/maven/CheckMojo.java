@@ -157,9 +157,11 @@ public class CheckMojo extends AbstractMojo
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException
     {
+        File projectFile = this.project.getArtifact().getFile();
+
         // Only JAR packages are supported right now
-        if (!this.project.getPackaging().equals("jar")) {
-            getLog().info("Only project with packaging JAR are supported. Skipping.");
+        if (projectFile == null || !projectFile.getName().endsWith(".jar")) {
+            getLog().info("Only modules packaging a JAR file are supported. Skipping.");
 
             return;
         }
@@ -175,9 +177,8 @@ public class CheckMojo extends AbstractMojo
         File projectCallGraphFile = new File(this.outputDirectory, "project.json");
         MavenExtendedRevisionJavaCallGraph projectCG;
         try {
-            projectCG =
-                buildCallGraph(this.project.getArtifact(), new File(this.project.getBuild().getOutputDirectory()),
-                    projectCallGraphFile, this.project.getGroupId() + ':' + this.project.getArtifactId());
+            projectCG = buildCallGraph(this.project.getArtifact(), projectCallGraphFile,
+                this.project.getGroupId() + ':' + this.project.getArtifactId());
         } catch (OPALException e) {
             throw new MojoExecutionException(
                 "Failed to build a call graph for directory [" + this.project.getBuild().getOutputDirectory() + "]", e);

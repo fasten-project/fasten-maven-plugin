@@ -42,7 +42,6 @@ import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.DefaultArtifact;
 import org.apache.maven.artifact.repository.ArtifactRepository;
 import org.apache.maven.execution.MavenSession;
-import org.apache.maven.model.Build;
 import org.apache.maven.model.Model;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -73,7 +72,7 @@ class CheckMojoTest
 {
     private static final String MAVEN_CENTRAL = "https://repo1.maven.org/maven2/";
 
-    private static final File A_FOLDER = new File("target/test-classes/eu/fasten/maven/a/");
+    private static final File A_CLASSFILE = new File("target/test-classes/eu/fasten/maven/a/A.class");
 
     private static final File B_CLASSFILE = new File("target/test-classes/eu/fasten/maven/b/B.class");
 
@@ -89,9 +88,7 @@ class CheckMojoTest
 
     private File projectWorkDir;
 
-    private File projectWorkDirTarget;
-
-    private File projectWorkDirTargetClasses;
+    private File projectArtifactFile;
 
     private MavenProject project = new MavenProject();
 
@@ -112,6 +109,9 @@ class CheckMojoTest
     void beforeEach() throws IllegalAccessException
     {
         this.testWorkDir = new File("target/test-" + new Date().getTime()).getAbsoluteFile();
+        this.testWorkDir.mkdirs();
+
+        this.projectArtifactFile = new File(this.testWorkDir, "project.jar");
 
         this.mojo.setLog(this.log);
 
@@ -122,10 +122,13 @@ class CheckMojoTest
         this.project.setModel(model);
         FieldUtils.writeField(this.mojo, "project", this.project, true);
 
-        this.project.setArtifact(artifact("pgroupid", "partifactid", "1.0-SNAPSHOT", null, null));
+        this.project.setArtifact(artifact("pgroupid", "partifactid", "1.0-SNAPSHOT", this.projectArtifactFile, null));
 
         when(this.session.isOffline()).thenReturn(false);
         FieldUtils.writeField(this.mojo, "session", this.session, true);
+
+        this.projectWorkDir = new File(this.testWorkDir, "PROJECT/");
+        FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
     }
 
     private void jar(File file, File... classFiles) throws FileNotFoundException, IOException
@@ -161,22 +164,12 @@ class CheckMojoTest
     @Test
     void testStitching() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException
     {
-        this.projectWorkDir = new File(this.testWorkDir, "A/");
-        this.projectWorkDirTarget = new File(this.projectWorkDir, "target/");
-        this.projectWorkDirTargetClasses = new File(this.projectWorkDirTarget, "classes/");
+        jar(this.projectArtifactFile, A_CLASSFILE);
+
         File dependencyBDir = new File(this.testWorkDir, "B.jar");
         File dependencyCDir = new File(this.testWorkDir, "C.jar");
-
-        FileUtils.copyDirectory(A_FOLDER, new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/a/"));
-
         jar(dependencyBDir, B_CLASSFILE, BC_CLASSFILE);
         jar(dependencyCDir, C_CLASSFILE, BC_CLASSFILE);
-
-        FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
-
-        Build build = new Build();
-        build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
-        this.project.setBuild(build);
 
         Set<Artifact> artifacts = new LinkedHashSet<>();
         artifacts.add(artifact("b", "b", "1.0", dependencyBDir, null));
@@ -218,18 +211,7 @@ class CheckMojoTest
     @Test
     void testMetadata() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException
     {
-        this.projectWorkDir = new File(this.testWorkDir, "PROJECT/");
-        this.projectWorkDirTarget = new File(this.projectWorkDir, "target/");
-        this.projectWorkDirTargetClasses = new File(this.projectWorkDirTarget, "classes/");
-
-        FileUtils.copyDirectory(new File("target/test-classes/eu/fasten/maven/metadata/"),
-            new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/metadata/"));
-
-        FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
-
-        Build build = new Build();
-        build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
-        this.project.setBuild(build);
+        jar(this.projectArtifactFile, new File("target/test-classes/eu/fasten/maven/metadata/ProjectClass.class"));
 
         Set<Artifact> artifacts = new LinkedHashSet<>();
         artifacts.add(artifact("org.ow2.asm", "asm", "7.0", new File("asm.jar"), MAVEN_CENTRAL));
@@ -251,18 +233,7 @@ class CheckMojoTest
     @Test
     void testSecurity() throws IOException, IllegalAccessException
     {
-        this.projectWorkDir = new File(this.testWorkDir, "PROJECT/");
-        this.projectWorkDirTarget = new File(this.projectWorkDir, "target/");
-        this.projectWorkDirTargetClasses = new File(this.projectWorkDirTarget, "classes/");
-
-        FileUtils.copyDirectory(new File("target/test-classes/eu/fasten/maven/security/"),
-            new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/security/"));
-
-        FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
-
-        Build build = new Build();
-        build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
-        this.project.setBuild(build);
+        jar(this.projectArtifactFile, new File("target/test-classes/eu/fasten/maven/security/ProjectClass.class"));
 
         Set<Artifact> artifacts = new LinkedHashSet<>();
         artifacts.add(artifact("org.jboss.resteasy", "resteasy-jaxrs", "3.0.23.Final", new File(
@@ -305,22 +276,12 @@ class CheckMojoTest
     @Test
     void testBinary() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException
     {
-        this.projectWorkDir = new File(this.testWorkDir, "A/");
-        this.projectWorkDirTarget = new File(this.projectWorkDir, "target/");
-        this.projectWorkDirTargetClasses = new File(this.projectWorkDirTarget, "classes/");
+        jar(this.projectArtifactFile, A_CLASSFILE);
+
         File dependencyBDir = new File(this.testWorkDir, "B.jar");
         File dependencyCDir = new File(this.testWorkDir, "C.jar");
-
-        FileUtils.copyDirectory(A_FOLDER, new File(this.projectWorkDirTargetClasses, "eu/fasten/maven/a/"));
-
         jar(dependencyBDir, B_CLASSFILE, BC_CLASSFILE);
         jar(dependencyCDir, C_CLASSFILE, BC_CLASSFILE);
-
-        FieldUtils.writeField(this.mojo, "outputDirectory", new File(this.projectWorkDir, "target/call-graphs/"), true);
-
-        Build build = new Build();
-        build.setOutputDirectory(this.projectWorkDirTargetClasses.toString());
-        this.project.setBuild(build);
 
         Set<Artifact> artifacts = new LinkedHashSet<>();
         artifacts.add(artifact("b", "b", "1.0", dependencyBDir, null));
