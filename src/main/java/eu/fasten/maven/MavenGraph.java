@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.collections4.ListUtils;
+import org.apache.maven.plugin.logging.Log;
 import org.jgrapht.traverse.DepthFirstIterator;
 
 import eu.fasten.core.data.DirectedGraph;
@@ -67,9 +68,12 @@ public class MavenGraph
 
     private Map<String, Map<FastenURI, Long>> localProductURIToGraphId = new HashMap<>();
 
+    private final Log log;
+
     public MavenGraph(MavenExtendedRevisionJavaCallGraph projectRCG,
-        List<MavenExtendedRevisionJavaCallGraph> dependencyRCGs)
+        List<MavenExtendedRevisionJavaCallGraph> dependencyRCGs, Log log)
     {
+        this.log = log;
         this.projectRCG = projectRCG;
         this.fullDependenciesCGs = new ArrayList<>(dependencyRCGs);
         this.optimizedDependenciesCGs = new HashSet<>();
@@ -83,10 +87,14 @@ public class MavenGraph
         ///////////////////////
         // Build full graph
 
+        this.log.info("Creating full call graph");
+
         this.fullGraph = createFullGraph();
 
         ///////////////////////
         // Build optimized graph
+
+        this.log.info("Creating optimized call graph");
 
         this.optimizedGraph = createOptimizeGraph();
     }

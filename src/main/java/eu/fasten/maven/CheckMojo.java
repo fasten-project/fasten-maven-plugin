@@ -206,7 +206,7 @@ public class CheckMojo extends AbstractMojo
             // Produce resolved call graphs
             getLog().info("Produce resolved call graphs.");
 
-            this.graph = new MavenGraph(projectCG, dependenciesCGs);
+            this.graph = new MavenGraph(projectCG, dependenciesCGs, getLog());
             if (this.serialize) {
                 try {
                     this.graph.serialize(new File(this.outputDirectory, "stitched-graphs"));
@@ -390,7 +390,7 @@ public class CheckMojo extends AbstractMojo
         Set<MavenExtendedRevisionJavaCallGraph> dependencies = new HashSet<>();
 
         List<MavenGraphNode> nodes = this.graph.getOptimizedNodes();
-        getLog().info("Enriching stitched call graph with " + nodes.size() + " callable nodes.");
+        getLog().info("Enriching optimized call graph with " + nodes.size() + " callable nodes.");
         Map<String, MavenGraphNode> map = new HashMap<>();
         JSONArray json = new JSONArray();
         for (MavenGraphNode node : nodes) {
