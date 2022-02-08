@@ -35,7 +35,6 @@ import org.apache.maven.plugin.logging.Log;
 import org.jgrapht.traverse.DepthFirstIterator;
 
 import eu.fasten.core.data.DirectedGraph;
-import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
 import eu.fasten.core.data.FastenJavaURI;
 import eu.fasten.core.data.FastenURI;
 import eu.fasten.core.data.JavaNode;
