@@ -1,16 +1,11 @@
 package eu.fasten.maven.security;
 
-import java.io.IOException;
-
-import org.jboss.resteasy.core.interception.ResponseContainerRequestContext;
-import org.jboss.resteasy.plugins.interceptors.CorsFilter;
+import com.google.common.base.Objects;
 
 public class ProjectClass
 {
-    public static void m() throws IOException
+    public static void m()
     {
-        CorsFilter filter = new CorsFilter();
-        ResponseContainerRequestContext context = new ResponseContainerRequestContext(null);
-        filter.filter(context);
+        Objects.equal(5, 42);
     }
 }

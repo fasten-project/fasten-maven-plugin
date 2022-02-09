@@ -238,10 +238,9 @@ class CheckMojoTest
         jar(this.projectArtifactFile, new File("target/test-classes/eu/fasten/maven/security/ProjectClass.class"));
 
         Set<Artifact> artifacts = new LinkedHashSet<>();
-        artifacts.add(artifact("org.jboss.resteasy", "resteasy-jaxrs", "3.0.23.Final", new File(
-                // TODO This is a hard coded path that will probably not work in any CI/CD setup ;)
-            "/home/tmortagne/.m2/repository/org/jboss/resteasy/resteasy-jaxrs/3.0.23.Final/resteasy-jaxrs-3.0.23.Final.jar"),
-            MAVEN_CENTRAL));
+
+        artifacts.add(artifact("com.google.guava", "guava", "24.1.1-jre",
+            new File("/home/tmortagne/.m2/repository/com/google/guava/24.1.1-jre/guava-24.1.1-jre.jar"), MAVEN_CENTRAL));
         this.project.setArtifacts(artifacts);
 
         RiskAnalyzerConfiguration configuration = new RiskAnalyzerConfiguration();
@@ -266,8 +265,7 @@ class CheckMojoTest
         assertEquals(1, errors.size());
 
         assertEquals(
-            "The vulnerability CVE-2017-7561 affects dependency org.jboss.resteasy:resteasy-jaxrs:jar:3.0.23.Final because of the following used callables:\n"
-                + "  * org.jboss.resteasy.plugins.interceptors.CorsFilter.preflight(%2Fjava.lang%2FString,%2Fjavax.ws.rs.container%2FContainerRequestContext)%2Fjava.lang%2FVoidType",
+            "The vulnerability CVE-2020-8908 affects dependency com.google.guava:guava:jar:24.1.1-jre",
             errors.get(0).getFormattedMessage());
     }
 
