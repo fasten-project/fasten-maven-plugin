@@ -71,11 +71,10 @@ import org.json.JSONTokener;
 
 import eu.fasten.analyzer.javacgopal.data.CGAlgorithm;
 import eu.fasten.analyzer.javacgopal.data.OPALCallGraphConstructor;
-import eu.fasten.analyzer.javacgopal.data.PartialCallGraph;
-import eu.fasten.analyzer.javacgopal.data.PartialCallGraphConstructor;
-import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
+import eu.fasten.analyzer.javacgopal.data.OPALPartialCallGraphConstructor;
 import eu.fasten.core.data.JSONUtils;
 import eu.fasten.core.data.JavaScope;
+import eu.fasten.core.data.PartialJavaCallGraph;
 import eu.fasten.core.data.opal.exceptions.OPALException;
 import eu.fasten.maven.analyzer.MavenRiskContext;
 import eu.fasten.maven.analyzer.RiskAnalyzer;
@@ -186,7 +185,7 @@ public class CheckMojo extends AbstractMojo
 
         // Build/Get dependencies call graphs
         List<MavenExtendedRevisionJavaCallGraph> dependenciesCGs = new ArrayList<>(this.project.getArtifacts().size());
-        List<ExtendedRevisionJavaCallGraph> all = new ArrayList<>(this.project.getArtifacts().size() + 1);
+        List<PartialJavaCallGraph> all = new ArrayList<>(this.project.getArtifacts().size() + 1);
         all.add(projectCG);
         for (Artifact artifact : this.project.getArtifacts()) {
             getLog().info("Generating call graphs for dependency [" + artifact + "].");
@@ -612,16 +611,12 @@ public class CheckMojo extends AbstractMojo
         String product) throws OPALException
     {
     	var ocgc = new OPALCallGraphConstructor();
-    	var pcgc = new PartialCallGraphConstructor();
-        PartialCallGraph input = pcgc.construct(ocgc.construct(file, CGAlgorithm.valueOf(this.genAlgorithm)), ONLY_STATIC_CALLSITES);
+    	var pcgc = new OPALPartialCallGraphConstructor();
+        var input = pcgc.construct(ocgc.construct(file, CGAlgorithm.valueOf(this.genAlgorithm)), ONLY_STATIC_CALLSITES);
 
         boolean remote = isRemote(artifact.getVersion(), false);
-
-        MavenExtendedRevisionJavaCallGraph cg = new MavenExtendedRevisionJavaCallGraph(artifact,
-            ExtendedRevisionJavaCallGraph.extendedBuilder().graph(input.graph).product(product)
-                .version(artifact.getVersion()).timestamp(0).cgGenerator("").forge("")
-                .classHierarchy(input.classHierarchy).nodeCount(input.nodeCount),
-            remote);
+        
+        var cg = new MavenExtendedRevisionJavaCallGraph(artifact, product, input.classHierarchy,input.graph, remote);
 
         // Remember the call graph in a file
 
@@ -640,7 +635,7 @@ public class CheckMojo extends AbstractMojo
         return cg;
     }
 
-    private void writeRcgJsonString(ExtendedRevisionJavaCallGraph rcg, File outputFile) throws IOException
+    private void writeRcgJsonString(PartialJavaCallGraph rcg, File outputFile) throws IOException
     {
         FileUtils.write(outputFile, JSONUtils.toJSONString(rcg), StandardCharsets.UTF_8);
     }

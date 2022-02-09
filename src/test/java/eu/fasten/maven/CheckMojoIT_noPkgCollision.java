@@ -33,8 +33,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  * 
  * @version $Id$
  */
+// TODO maven was complaining about a collision with a Package name this should be addressed
 @MavenJupiterExtension
-public class CheckMojoIT
+public class CheckMojoIT_noPkgCollision
 {
     @MavenTest
     void test1(MavenExecutionResult result)

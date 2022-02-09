@@ -18,6 +18,7 @@
 package eu.fasten.maven;
 
 import java.io.InputStream;
+import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -29,17 +30,18 @@ import org.apache.maven.model.License;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
-import eu.fasten.core.data.ExtendedBuilder;
-import eu.fasten.core.data.ExtendedRevisionJavaCallGraph;
+import eu.fasten.core.data.Constants;
+import eu.fasten.core.data.JavaGraph;
 import eu.fasten.core.data.JavaScope;
 import eu.fasten.core.data.JavaType;
+import eu.fasten.core.data.PartialJavaCallGraph;
 
 /**
  * Extends {@link ExtendedRevisionJavaCallGraph} to add Maven specific information.
  * 
  * @version $Id$
  */
-public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCallGraph
+public class MavenExtendedRevisionJavaCallGraph extends PartialJavaCallGraph
 {
     private final Artifact artifact;
 
@@ -56,10 +58,10 @@ public class MavenExtendedRevisionJavaCallGraph extends ExtendedRevisionJavaCall
      * @param builder builder for {@link ExtendedRevisionJavaCallGraph}
      * @param remote true if the call graph might contain remote metadata
      */
-    public MavenExtendedRevisionJavaCallGraph(Artifact artifact,
-        ExtendedBuilder<EnumMap<JavaScope, Map<String, JavaType>>> builder, boolean remote)
+    public MavenExtendedRevisionJavaCallGraph(Artifact artifact, String product, final EnumMap<JavaScope,Map<String, JavaType>> classHierarchy,
+            final JavaGraph graph, boolean remote)
     {
-        super(builder);
+        super(Constants.mvnForge, product, artifact.getVersion(), new Date().getTime(), Constants.opalGenerator, classHierarchy, graph);
 
         this.artifact = artifact;
         this.remote = remote;
