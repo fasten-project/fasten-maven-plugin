@@ -163,7 +163,7 @@ class CheckMojoTest
     }
 
     @Test
-    void testStitching() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException
+    void testStitching() throws MojoExecutionException, MojoFailureException, IOException
     {
         jar(this.projectArtifactFile, A_CLASSFILE);
 
@@ -210,7 +210,7 @@ class CheckMojoTest
     }
 
     @Test
-    void testMetadata() throws MojoExecutionException, MojoFailureException, IOException, IllegalAccessException
+    void testMetadata() throws MojoExecutionException, MojoFailureException, IOException
     {
         jar(this.projectArtifactFile, new File("target/test-classes/eu/fasten/maven/metadata/ProjectClass.class"));
 
@@ -233,21 +233,22 @@ class CheckMojoTest
 
     @Test
     @Disabled
-    void testSecurity() throws IOException, IllegalAccessException, MojoExecutionException, MojoFailureException
+    void testSecurity() throws IOException, IllegalAccessException
     {
         jar(this.projectArtifactFile, new File("target/test-classes/eu/fasten/maven/security/ProjectClass.class"));
 
         Set<Artifact> artifacts = new LinkedHashSet<>();
 
         artifacts.add(artifact("com.google.guava", "guava", "24.1.1-jre",
-            new File("/home/tmortagne/.m2/repository/com/google/guava/24.1.1-jre/guava-24.1.1-jre.jar"), MAVEN_CENTRAL));
+            new File(
+                FileUtils.getUserDirectoryPath() + "/.m2/repository/com/google/guava/24.1.1-jre/guava-24.1.1-jre.jar"),
+            MAVEN_CENTRAL));
         this.project.setArtifacts(artifacts);
 
         RiskAnalyzerConfiguration configuration = new RiskAnalyzerConfiguration();
         configuration.setType("fasten.security");
         FieldUtils.writeField(this.mojo, "risks", Arrays.asList(configuration), true);
 
-        // TODO this does not throw an exception
         assertThrows(MojoFailureException.class, () -> this.mojo.execute());
 
         List<RiskReport> reports = this.mojo.reports;
