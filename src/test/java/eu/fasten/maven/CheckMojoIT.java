@@ -22,9 +22,8 @@ package eu.fasten.maven;
 import com.soebes.itf.jupiter.extension.MavenJupiterExtension;
 import com.soebes.itf.jupiter.extension.MavenTest;
 import com.soebes.itf.jupiter.maven.MavenExecutionResult;
-import com.soebes.itf.jupiter.maven.MavenExecutionResult.ExecutionResult;
 
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static com.soebes.itf.extension.assertj.MavenITAssertions.assertThat;
 
 /**
  * Integration tests for {@link CheckMojo}.
@@ -33,13 +32,12 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  * 
  * @version $Id$
  */
-// TODO maven was complaining about a collision with a Package name this should be addressed
 @MavenJupiterExtension
 public class CheckMojoIT
 {
     @MavenTest
     void test1(MavenExecutionResult result)
     {
-        assertSame(ExecutionResult.Successful, result.getResult());
+        assertThat(result).isSuccessful();
     }
 }
