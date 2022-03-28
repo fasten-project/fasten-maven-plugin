@@ -27,8 +27,7 @@ jobs:
           settings-path: ${{ github.workspace }} # location of settings.xml
 
       - name: Build Project (Maven)
-        # "install" needed for the build of restapi
-        run: mvn -B -ntp clean install -s ${{ github.workspace }}/settings.xml
+        run: mvn -ntp -Pgithub clean verify
         env:
           # auth necessary to access GitHub Maven registries
           GITHUB_TOKEN: ${{ github.token }}
