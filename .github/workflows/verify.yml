@@ -27,7 +27,7 @@ jobs:
           settings-path: ${{ github.workspace }} # location of settings.xml
 
       - name: Build Project (Maven)
-        run: mvn -ntp -Pgithub clean verify
+        run: mvn -ntp clean verify -s ${{ github.workspace }}/settings.xml
         env:
           # auth necessary to access GitHub Maven registries
           GITHUB_TOKEN: ${{ github.token }}
