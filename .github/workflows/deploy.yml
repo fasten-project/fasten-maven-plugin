@@ -34,7 +34,7 @@ jobs:
         run: mvn -B -ntp versions:set -DnewVersion=${{ env.version }}
 
       - name: Deploy Maven packages
-        run: mvn -B -ntp clean deploy -s ${{ github.workspace }}/settings.xml
+        run: mvn -B -Pgithub -ntp clean deploy
         env:
           # auth necessary to access GitHub Maven registries
           GITHUB_TOKEN: ${{ github.token }}

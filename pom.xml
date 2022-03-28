@@ -236,10 +236,10 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-     <groupId>com.soebes.itf.jupiter.extension</groupId>
-     <artifactId>itf-assertj</artifactId>
-     <version>0.11.0</version>
-     <scope>test</scope>
+      <groupId>com.soebes.itf.jupiter.extension</groupId>
+      <artifactId>itf-assertj</artifactId>
+      <version>0.11.0</version>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.incava</groupId>
@@ -266,4 +266,29 @@
     </dependency>
   </dependencies>
 
+  <!-- Required to download fasten artifacts -->
+  <!-- TODO: remove when FASTEN is released on Maven Central -->
+  <repositories>
+    <repository>
+      <id>central</id>
+      <url>https://repo1.maven.org/maven2</url>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+    </repository>
+    <repository>
+      <id>github</id>
+      <name>GH FASTEN</name>
+      <url>https://maven.pkg.github.com/fasten-project/fasten</url>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+    </repository>
+  </repositories>
 </project>
