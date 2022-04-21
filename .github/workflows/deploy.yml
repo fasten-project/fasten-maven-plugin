@@ -3,7 +3,7 @@ name: Deploy
 # only trigger on tags, `verify` has already been triggered by push to PR
 on:
   push:
-    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+    tags: ["fasten-maven-plugin-[0-9]+.[0-9]+.[0-9]+"]
 
 jobs:
   build:
