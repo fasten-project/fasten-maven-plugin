@@ -292,4 +292,12 @@
       </releases>
     </repository>
   </repositories>
+
+  <distributionManagement>
+    <repository>
+      <id>github</id>
+      <name>GitHub Packages: fasten-project/fasten-maven-plugin</name>
+      <url>https://maven.pkg.github.com/fasten-project/fasten-maven-plugin</url>
+    </repository>
+  </distributionManagement>
 </project>
