@@ -11,27 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Parse version info from tag
-        run: |
-          # GITHUB_REF is like refs/tags/v2.3.5, so strip the first 11 chars
-          VERSION=${GITHUB_REF:11}
-          MAJOR=`echo "$VERSION" | cut -d . -f 1`
-          MINOR=`echo "$VERSION" | cut -d . -f 2`
-          PATCH=`echo "$VERSION" | cut -d . -f 3`
-          echo "version=$VERSION" >> $GITHUB_ENV
-          echo "version_major=$MAJOR" >> $GITHUB_ENV
-          echo "version_minor=$MINOR" >> $GITHUB_ENV
-          echo "version_patch=$PATCH" >> $GITHUB_ENV
-
       - uses: actions/setup-java@v2
         with:
           java-version: '11'
           distribution: 'temurin'
           server-id: github # Value of distributionManagement/repository/id
           settings-path: ${{ github.workspace }} # location of settings.xml
-
-      - name: Updating versions in all projects
-        run: mvn -B -ntp versions:set -DnewVersion=${{ env.version }}
 
       - name: Deploy Maven packages
         run: mvn -B -ntp clean deploy -s ${{ github.workspace }}/settings.xml
