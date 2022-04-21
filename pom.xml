@@ -38,8 +38,9 @@
 
   <scm>
     <connection>scm:git:git://github.com/fasten-project/fasten-maven-plugin.git</connection>
-    <developerConnection>scm:git:git://github.com/fasten-project/fasten-maven-plugin.git</developerConnection>
-    <url>http://github.com/fasten-project/fasten-maven-plugin/tree/master</url>
+    <developerConnection>scm:git:git@github.com:fasten-project/fasten-maven-plugin.git</developerConnection>
+    <url>https://github.com/fasten-project/fasten-maven-plugin</url>
+    <tag>HEAD</tag>
   </scm>
 
   <build>
