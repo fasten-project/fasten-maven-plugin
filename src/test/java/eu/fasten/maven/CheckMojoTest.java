@@ -210,6 +210,8 @@ class CheckMojoTest
     }
 
     @Test
+    // TODO: refactor the test based on Wiremock
+    @Disabled
     void testMetadata() throws MojoExecutionException, MojoFailureException, IOException
     {
         jar(this.projectArtifactFile, new File("target/test-classes/eu/fasten/maven/metadata/ProjectClass.class"));
@@ -232,6 +234,7 @@ class CheckMojoTest
     }
 
     @Test
+    // TODO: refactor the test based on Wiremock
     @Disabled
     void testSecurity() throws IOException, IllegalAccessException
     {
