@@ -17,8 +17,6 @@
  */
 package eu.fasten.maven;
 
-import static eu.fasten.analyzer.javacgopal.data.CallPreservationStrategy.ONLY_STATIC_CALLSITES;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -48,23 +46,13 @@ import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.net.URLEncodedUtils;
 import org.apache.maven.artifact.Artifact;
-import org.apache.maven.artifact.repository.ArtifactRepository;
-import org.apache.maven.execution.MavenSession;
-import org.apache.maven.model.building.ModelBuildingRequest;
-import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
-import org.apache.maven.plugins.annotations.Component;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
-import org.apache.maven.project.DefaultProjectBuildingRequest;
 import org.apache.maven.project.MavenProject;
-import org.apache.maven.project.ProjectBuilder;
-import org.apache.maven.project.ProjectBuildingException;
-import org.apache.maven.project.ProjectBuildingRequest;
-import org.apache.maven.project.ProjectBuildingResult;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
@@ -82,13 +70,15 @@ import eu.fasten.maven.analyzer.RiskAnalyzerConfiguration;
 import eu.fasten.maven.analyzer.RiskContext;
 import eu.fasten.maven.analyzer.RiskReport;
 
+import static eu.fasten.analyzer.javacgopal.data.CallPreservationStrategy.ONLY_STATIC_CALLSITES;
+
 /**
  * Build a call graph of the module and its dependencies.
  *
  * @version $Id: 982ced7f89e6c39126d28b2f9e5fcac365250288 $
  */
 @Mojo(name = "check", defaultPhase = LifecyclePhase.VERIFY, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME, requiresProject = true, threadSafe = true)
-public class CheckMojo extends AbstractMojo
+public class CheckMojo extends AbstractFASTENMojo
 {
     public enum MetadataDownload
     {
@@ -101,18 +91,6 @@ public class CheckMojo extends AbstractMojo
         // For all dependencies
         all
     }
-
-    @Component
-    private ProjectBuilder projectBuilder;
-
-    @Parameter(defaultValue = "${session}", required = true, readonly = true)
-    private MavenSession session;
-
-    @Parameter(defaultValue = "${project}", required = true, readonly = true)
-    private MavenProject project;
-
-    @Parameter(property = "localRepository")
-    private ArtifactRepository localRepository;
 
     @Parameter(defaultValue = "target/call-graphs/")
     private File outputDirectory;
@@ -363,26 +341,6 @@ public class CheckMojo extends AbstractMojo
         }
     }
 
-    public MavenProject getMavenProject(Artifact artifact) throws MojoExecutionException
-    {
-        try {
-            ProjectBuildingRequest request = new DefaultProjectBuildingRequest(this.session.getProjectBuildingRequest())
-                // We don't want to execute any plugin here
-                .setProcessPlugins(false)
-                // The local repository
-                .setLocalRepository(this.localRepository)
-                // It's not this plugin job to validate this pom.xml
-                .setValidationLevel(ModelBuildingRequest.VALIDATION_LEVEL_MINIMAL)
-                // Use the repositories configured for the built project instead of the default Maven ones
-                .setRemoteRepositories(this.session.getCurrentProject().getRemoteArtifactRepositories());
-            // Note: build() will automatically get the POM artifact corresponding to the passed artifact.
-            ProjectBuildingResult result = this.projectBuilder.build(artifact, request);
-            return result.getProject();
-        } catch (ProjectBuildingException e) {
-            throw new MojoExecutionException(String.format("Failed to build project for [%s]", artifact), e);
-        }
-    }
-
     private Set<MavenExtendedRevisionJavaCallGraph> enrichStitchedCallables()
         throws MojoExecutionException, URISyntaxException, IOException
     {
@@ -610,13 +568,13 @@ public class CheckMojo extends AbstractMojo
     private MavenExtendedRevisionJavaCallGraph buildCallGraph(Artifact artifact, File file, File outputFile,
         String product) throws OPALException
     {
-    	var ocgc = new OPALCallGraphConstructor();
-    	var pcgc = new OPALPartialCallGraphConstructor();
+        var ocgc = new OPALCallGraphConstructor();
+        var pcgc = new OPALPartialCallGraphConstructor();
         var input = pcgc.construct(ocgc.construct(file, CGAlgorithm.valueOf(this.genAlgorithm)), ONLY_STATIC_CALLSITES);
 
         boolean remote = isRemote(artifact.getVersion(), false);
-        
-        var cg = new MavenExtendedRevisionJavaCallGraph(artifact, product, input.classHierarchy,input.graph, remote);
+
+        var cg = new MavenExtendedRevisionJavaCallGraph(artifact, product, input.classHierarchy, input.graph, remote);
 
         // Remember the call graph in a file
 

@@ -20,6 +20,7 @@ package eu.fasten.maven.analyzer;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,11 +34,14 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.maven.model.License;
+import org.apache.maven.project.MavenProject;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
 import eu.fasten.maven.MavenExtendedRevisionJavaCallGraph;
+import eu.fasten.maven.license.LicenseResult;
+import eu.fasten.maven.license.LicenseResult.LicenseResultType;
 
 /**
  * Find license incompatibilities in the runtime dependencies.
@@ -59,44 +63,6 @@ public class LicenseRiskAnalyzer extends AbstractRiskAnalyzer
 
     private Map<String, Map<String, LicenseResult>> cache = new HashMap<>();
 
-    enum LicenseResultType
-    {
-        COMPATIBLE,
-
-        NOT_COMPATIBLE,
-
-        UNKNOWN
-    }
-
-    class LicenseResult
-    {
-        final String message;
-
-        final LicenseResultType status;
-
-        final String spdxInbound;
-
-        final String spdxOutbound;
-
-        public LicenseResult(JSONObject message)
-        {
-            this.message = message.getString("message");
-
-            String statusString = message.getString("status");
-
-            if (statusString.equals("compatible")) {
-                this.status = LicenseResultType.COMPATIBLE;
-            } else if (statusString.equals("not compatible")) {
-                this.status = LicenseResultType.NOT_COMPATIBLE;
-            } else {
-                this.status = LicenseResultType.UNKNOWN;
-            }
-
-            this.spdxInbound = message.getString("inbound");
-            this.spdxOutbound = message.getString("outbound");
-        }
-    }
-
     @Override
     public Set<String> getMavenExtras()
     {
@@ -107,7 +73,7 @@ public class LicenseRiskAnalyzer extends AbstractRiskAnalyzer
     public void analyze(RiskContext context, RiskReport report)
     {
         // Get the outbound licenses
-        List<String> outboundLicenses = getOutboundLicences((MavenRiskContext) context);
+        Set<String> outboundLicenses = getOutboundLicences(((MavenRiskContext) context).getMavenProject());
 
         // Validate each dependency with the outbound licenses
         for (String outbound : outboundLicenses) {
@@ -133,10 +99,10 @@ public class LicenseRiskAnalyzer extends AbstractRiskAnalyzer
         for (License license : dependency.getMavenLicenses()) {
             LicenseResult result = validate(outbound, license.getName());
 
-            if (result.status == LicenseResultType.COMPATIBLE) {
+            if (result.getStatus() == LicenseResultType.COMPATIBLE) {
                 // The dependency is compatible if at least one of its licenses is
                 return;
-            } else if (result.status == LicenseResultType.NOT_COMPATIBLE) {
+            } else if (result.getStatus() == LicenseResultType.NOT_COMPATIBLE) {
                 if (errors == null) {
                     errors = new ArrayList<>();
                 }
@@ -151,12 +117,12 @@ public class LicenseRiskAnalyzer extends AbstractRiskAnalyzer
 
         // Report errors
         if (errors != null) {
-            errors.forEach(e -> report.error("{}: {}", dependency.getArtifact().toString(), e.message));
+            errors.forEach(e -> report.error("{}: {}", dependency.getArtifact().toString(), e.getMessage()));
         }
 
         // Report warnings
         if (warnings != null) {
-            warnings.forEach(w -> report.warn("{}: {}", dependency.getArtifact().toString(), w.message));
+            warnings.forEach(w -> report.warn("{}: {}", dependency.getArtifact().toString(), w.getMessage()));
         }
     }
 
@@ -182,9 +148,9 @@ public class LicenseRiskAnalyzer extends AbstractRiskAnalyzer
         return result;
     }
 
-    private List<String> getOutboundLicences(MavenRiskContext context)
+    public static Set<String> getOutboundLicences(MavenProject project)
     {
-        return context.getMavenProject().getLicenses().stream().map(License::getName).collect(Collectors.toList());
+        return project.getLicenses().stream().map(License::getName).collect(Collectors.toSet());
     }
 
     private LicenseResult validateOnline(String outbound, String inbound) throws IOException, URISyntaxException
@@ -200,6 +166,33 @@ public class LicenseRiskAnalyzer extends AbstractRiskAnalyzer
                 if (response.getCode() == 200) {
                     JSONArray json = new JSONArray(new JSONTokener(response.getEntity().getContent()));
                     return new LicenseResult((JSONObject) json.get(0));
+                } else if (response.getCode() == 404) {
+                    throw new IOException("License validation service not available (404)");
+                } else {
+                    throw new IOException("Unexpected code when response (" + response.getCode() + ")");
+                }
+            }
+        }
+    }
+
+    public static List<LicenseResult> get(Collection<String> inbound, Collection<String> outbound)
+        throws URISyntaxException, IOException
+    {
+        URIBuilder builder = new URIBuilder(LCVAPIURL);
+        builder.addParameter(LCVAPI_INBOUND, String.join(";", inbound));
+        builder.addParameter(LCVAPI_OUTBOUND, String.join(";", outbound));
+
+        HttpGet httpGet = new HttpGet(builder.build());
+
+        try (CloseableHttpClient httpclient = HttpClients.createSystem()) {
+            try (CloseableHttpResponse response = httpclient.execute(httpGet)) {
+                if (response.getCode() == 200) {
+                    JSONArray json = new JSONArray(new JSONTokener(response.getEntity().getContent()));
+                    List<LicenseResult> results = new ArrayList<>(json.length());
+                    for (Object obj : json) {
+                        results.add(new LicenseResult((JSONObject) obj));
+                    }
+                    return results;
                 } else if (response.getCode() == 404) {
                     throw new IOException("License validation service not available (404)");
                 } else {
