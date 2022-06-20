@@ -19,7 +19,7 @@
     <maven.compiler.target>11</maven.compiler.target>
     <mavenVersion>3.6.3</mavenVersion>
     <mavenPluginPluginVersion>3.6.0</mavenPluginPluginVersion>
-    <fastenVersion>0.0.8</fastenVersion>
+    <fastenVersion>0.0.12</fastenVersion>
   </properties>
 
   <description>
