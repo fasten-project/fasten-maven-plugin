@@ -5,7 +5,7 @@
   <groupId>eu.fasten</groupId>
   <artifactId>fasten-maven-plugin</artifactId>
   <packaging>maven-plugin</packaging>
-  <version>0.3.0</version>
+  <version>0.3.1-SNAPSHOT</version>
 
   <name>FASTEN Maven plugin</name>
 
@@ -39,7 +39,7 @@
     <connection>scm:git:git://github.com/fasten-project/fasten-maven-plugin.git</connection>
     <developerConnection>scm:git:git@github.com:fasten-project/fasten-maven-plugin.git</developerConnection>
     <url>https://github.com/fasten-project/fasten-maven-plugin</url>
-    <tag>fasten-maven-plugin-0.3.0</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <build>
